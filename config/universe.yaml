@@ -10,15 +10,15 @@ memes: [DOGE, SHIB, PEPE, FLOKI, BONK, WIF, BOME, MEME, PEOPLE, NEIRO, TURBO, PN
 blacklist: [BNB, USDC, FDUSD, TUSD, USDP, DAI, EUR, EURI, AEUR, USD1, XUSD, BFUSD, WBTC, WBETH, PAXG]
 
 filters:
-  min_quote_volume_24h: 5000000    # USDT
+  min_quote_volume_24h: 1000000    # USDT
   max_spread_pct: 0.5
   max_tick_pct: 1.0                # 1 tick > 1% do preço = fora
   min_listing_days: {major: 0, alt: 60, meme: 30}
   block_tags: [Monitoring]
 
 scan:
-  finalists: 30        # quantos pares passam para o cálculo de features
-  top_n: 8
+  finalists: 1000      # todos os que passam nos filtros recebem features
+  top_n: 25
   weights:             # pesos do score por categoria
     major: {trend: 0.5, breakout: 0.3, momentum: 0.1, volume: 0.1}
     alt:   {trend: 0.35, breakout: 0.3, momentum: 0.2, volume: 0.15}

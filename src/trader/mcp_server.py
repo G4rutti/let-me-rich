@@ -121,7 +121,7 @@ def get_regime() -> dict:
 
 @mcp.tool(annotations={"readOnlyHint": True})
 @safe
-def scan_market(top_n: Annotated[int, Field(ge=1, le=15)] = 8) -> dict:
+def scan_market(top_n: Annotated[int, Field(ge=1, le=50)] = 25) -> dict:
     """PASSO 4. Pares que passaram nos filtros duros, com features e score (maior = melhor). Só estes podem ser comprados."""
     c = ctx()
     r = scan_mod.scan(c.ex, c.conn, c.cfg)
