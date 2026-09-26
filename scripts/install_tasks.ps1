@@ -7,8 +7,8 @@ $root = Split-Path -Parent $PSScriptRoot
 $uv = (Get-Command uv -ErrorAction Stop).Source
 New-Item -ItemType Directory -Force "$root\data\logs" | Out-Null
 
-function New-BotTask($name, $args, $schedule) {
-    $cmd = "cmd /c cd /d `"$root`" && `"$uv`" run --frozen python -m $args >> data\logs\scheduler.log 2>&1"
+function New-BotTask($name, $module, $schedule) {
+    $cmd = "cmd /c cd /d `"$root`" && `"$uv`" run --frozen python -m $module >> data\logs\scheduler.log 2>&1"
     schtasks /Create /TN $name /TR $cmd @schedule /F | Out-Null
     Write-Host "criada: $name"
 }
