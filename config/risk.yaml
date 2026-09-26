@@ -1,0 +1,42 @@
+# Limites de risco. O Claude NÃO edita este arquivo (bloqueado em .claude/settings.json + hook).
+# Percentuais em %, valores em USDT.
+
+# off = nenhuma ordem | dry = valida e registra, não envia | live = envia ordem real.
+# "live" só deve ser escrito à mão, e exige max_order_usd numérico.
+mode: dry
+
+max_order_usd: 40            # teto duro por ordem de entrada
+max_daily_notional_usd: 150  # soma das entradas no dia
+
+risk_pct: {major: 1.5, alt: 1.0, meme: 0.5}          # risco por trade, % da banca
+max_exposure_pct: {major: null, alt: 50, meme: 10}   # soma das posições da categoria; null = sem limite
+max_position_pct: 40
+max_open_positions: 3
+
+stop_min_pct: 0.5
+stop_max_pct: {major: 8, alt: 12, meme: 15}
+max_stop_atr: 3.0            # stop no máximo a 3 ATR da entrada
+min_rr: 1.5                  # (alvo - entrada) / (entrada - stop)
+
+fee_pct: 0.1                 # por lado
+slippage_pct: {major: 0.1, alt: 0.2, meme: 0.3}
+min_move_fee_multiple: 3     # movimento até o alvo >= 3x (taxa ida+volta + slippage)
+max_entry_premium_pct: 1.0   # limite de compra no máximo 1% acima do ask
+
+daily_loss_max_pct: 4        # perda realizada no dia (fuso abaixo) trava entradas
+max_trades_per_day: 4
+cooldown_after_stop_h: 12
+stoploss_guard: {stops: 3, window_h: 24, pause_h: 12}
+max_consecutive_order_failures: 3
+
+min_notional_buffer: 1.5         # entrada >= min notional do par x 1.5 (nunca aumenta o tamanho para caber)
+partial_min_notional_buffer: 1.1 # parcial: parte vendida e restante >= min notional x 1.1
+partial_fill_timeout_min: 10
+
+bear_blocks: {major: true, alt: true, meme: true}
+timezone: America/Sao_Paulo
+
+setup_stats:
+  min_samples: 10
+  seek_expectancy_r: 0.2
+  avoid_expectancy_r: -0.1
