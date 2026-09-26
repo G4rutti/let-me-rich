@@ -50,6 +50,7 @@ Crie um bot com o @BotFather → `TELEGRAM_BOT_TOKEN`. Mande uma mensagem ao bot
 
 | Comando | O quê |
 |---|---|
+| `iniciar.bat` / `parar.bat` | liga/desliga em segundo plano (daemon + ciclo a cada 30 min). Parar não vende nada |
 | `uv run python -m trader.run_cycle` | um ciclo (o que o agendador roda) |
 | `uv run python -m trader.run_cycle --model sonnet` | idem com outro modelo |
 | `uv run python -m trader.run_cycle --weekly` | revisão semanal: propostas em `proposals/`, nunca aplica |
