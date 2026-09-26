@@ -143,7 +143,8 @@ def connect(path: Path | str | None = None) -> sqlite3.Connection:
     if path is None:
         DATA_DIR.mkdir(exist_ok=True)
         path = DATA_DIR / "trader.db"
-    conn = sqlite3.connect(path, isolation_level=None, timeout=30)  # autocommit
+    # check_same_thread=False: o MCP roda tools em threads, mas serializa tudo com um lock global
+    conn = sqlite3.connect(path, isolation_level=None, timeout=30, check_same_thread=False)  # autocommit
     conn.row_factory = sqlite3.Row
     if str(path) != ":memory:":
         conn.execute("PRAGMA journal_mode=WAL")
