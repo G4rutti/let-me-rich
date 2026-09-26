@@ -1,7 +1,27 @@
+# Python / uv
 .venv/
 __pycache__/
 *.pyc
 .pytest_cache/
-data/
-config/.env
+
+# Segredos: só o exemplo é versionado
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dados do bot: banco, logs, audit, locks
+data/
+*.db
+*.db-*
+*.log
+*.lock
+
+# Export fiscal (contém suas operações)
+*.csv
+
+# Editor / SO
+.idea/
+.vscode/
+Thumbs.db
