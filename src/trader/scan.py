@@ -106,12 +106,14 @@ def features(c1h: list, c4h: list) -> dict | None:
         return None
     cl1, cl4 = [c[4] for c in c1h], [c[4] for c in c4h]
     p = cl1[-1]
-    vols = [c[5] for c in c1h]
+    # A última vela do ccxt é a que ainda está se formando: sinais usam só velas FECHADAS.
+    closed4, cl4c = c4h[:-1], cl4[:-1]
+    vols = [c[5] for c in c1h[:-1]]
     base_vol = sum(vols[-25:-1]) / 24 or 1e-12
-    e20_4, e50_4 = ind.ema(cl4, 20)[-1], ind.ema(cl4, 50)[-1]
-    e20_1 = ind.ema(cl1, 20)[-1]
-    don = ind.donchian_high(c4h, 20)
-    a1, a4 = ind.atr(c1h), ind.atr(c4h)
+    e20_4, e50_4 = ind.ema(cl4c, 20)[-1], ind.ema(cl4c, 50)[-1]
+    e20_1 = ind.ema(cl1[:-1], 20)[-1]
+    don = ind.donchian_high(closed4, 20)
+    a1, a4 = ind.atr(c1h[:-1]), ind.atr(closed4)
     hi_30d = max(c[2] for c in c4h[-180:])
     return {
         "price": p,
@@ -120,7 +122,7 @@ def features(c1h: list, c4h: list) -> dict | None:
         "ret_4h": round(ind.pct_change(cl1[-5], p), 2),
         "ret_24h": round(ind.pct_change(cl1[-25], p), 2),
         "rsi_1h": round(ind.rsi(cl1), 1),
-        "rsi_4h": round(ind.rsi(cl4), 1),
+        "rsi_4h": round(ind.rsi(cl4c), 1),
         "atr_1h": a1, "atr_4h": a4,
         "atr_1h_pct": round(a1 / p * 100, 2), "atr_4h_pct": round(a4 / p * 100, 2),
         "dist_high_30d_pct": round(ind.pct_change(hi_30d, p), 2),
@@ -128,7 +130,7 @@ def features(c1h: list, c4h: list) -> dict | None:
         "above_ema20_4h": p > e20_4,
         "ema20_gt_ema50_4h": e20_4 > e50_4,
         "donchian20_4h": don,
-        "breakout_4h": cl4[-1] > don,
+        "breakout_4h": cl4c[-1] > don,   # fechamento 4h confirmado acima da máxima de 20 velas
         "dist_donchian_pct": round(ind.pct_change(don, p), 2),
     }
 

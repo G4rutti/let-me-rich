@@ -29,8 +29,10 @@ def test_regime_classify():
 
 def test_features_and_score_prefer_breakout_with_volume():
     c4 = candles(200, 50, 0.5)
-    c4[-1][4] = c4[-1][2] = c4[-2][2] * 1.03                     # fecha 3% acima da máxima anterior
-    f_up = features(candles(120, 100, 0.5, last_vol=600), c4)
+    c4[-1][4] = c4[-1][2] = c4[-2][2] * 1.03                     # última vela FECHADA rompe 3% acima
+    c1 = candles(120, 100, 0.5, last_vol=600)
+    forming = lambda c: c + [[c[-1][0] + 1, c[-1][4], c[-1][4], c[-1][4], c[-1][4], 1.0]]
+    f_up = features(forming(c1), forming(c4))                   # + vela ainda aberta (como vem do ccxt)
     f_flat = features(candles(120, 100, 0), candles(200, 100, 0))
     assert f_up["breakout_4h"] and f_up["vol_spike_1h"] == 6.0
     w = make_cfg().universe["scan"]["weights"]
@@ -62,3 +64,12 @@ def test_shadow_respects_regime(rules):
          "ema20_gt_ema50_4h": False, "atr_4h": 0.000001, "atr_1h": 0.0000004, "vol_spike_1h": 5, "ret_1h": 2, "rsi_1h": 70}
     assert shadow.step(conn, ex, make_cfg("dry"), [c], "BEAR")["shadow_opened"] == 0
     assert shadow.step(conn, ex, make_cfg("dry"), [c], "BULL")["shadow_opened"] == 1
+
+
+def test_breakout_ignores_forming_candle():
+    """Rompimento só na vela aberta (ainda não fechou) NÃO conta."""
+    c4 = candles(200, 50, 0.5)
+    spike = c4[-2][2] * 1.03
+    c4.append([c4[-1][0] + 1, spike, spike, spike, spike, 1.0])       # vela aberta rompendo
+    f = features(candles(121, 100, 0.5), c4)
+    assert f["breakout_4h"] is False

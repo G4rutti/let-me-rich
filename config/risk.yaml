@@ -3,7 +3,7 @@
 
 # off = nenhuma ordem | dry = valida e registra, não envia | live = envia ordem real.
 # "live" só deve ser escrito à mão, e exige max_order_usd numérico.
-mode: dry
+mode: live
 
 max_order_usd: 40            # teto duro por ordem de entrada
 max_daily_notional_usd: 150  # soma das entradas no dia
