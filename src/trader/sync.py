@@ -153,7 +153,7 @@ def _orphans(ctx: Ctx, bal: dict) -> list[str]:
     return events
 
 
-def sync(ctx: Ctx) -> dict:
+def sync(ctx: Ctx, snapshot: bool = True) -> dict:
     events = []
     for t in active_trades(ctx.conn):
         try:
@@ -168,6 +168,11 @@ def sync(ctx: Ctx) -> dict:
         events.append(f"ERRO ao tratar órfãos: {e}")
     pf = portfolio(ctx)
     ts = now_iso()
+    if not snapshot:
+        for e in events:
+            if "ERRO" in e:
+                ctx.notify("❗ " + e)
+        return {"events": events, "portfolio": pf}
     insert(ctx.conn, "equity_history", {"ts": ts, "equity_usd": pf["equity_usd"], "usdt_brl": usdt_brl(ctx.ex)})
     for asset, b in bal.items():
         insert(ctx.conn, "positions_snapshot", {"ts": ts, "cycle_id": ctx.cycle_id, "asset": asset,

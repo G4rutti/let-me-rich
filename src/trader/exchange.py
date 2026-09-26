@@ -98,7 +98,8 @@ class Exchange:
             "apiKey": secrets.get("BINANCE_API_KEY") or None,
             "secret": secrets.get("BINANCE_SECRET") or None,
             "enableRateLimit": True,
-            "options": {"defaultType": "spot", "adjustForTimeDifference": True, "recvWindow": 5000},
+            "options": {"defaultType": "spot", "adjustForTimeDifference": True, "recvWindow": 5000,
+                        "warnOnFetchOpenOrdersWithoutSymbol": False},
         })
         self.client.verbose = False
         self._rules: dict[str, MarketRules] = {}

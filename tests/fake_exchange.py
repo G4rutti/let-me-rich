@@ -118,3 +118,6 @@ class FakeExchange:
         self.bal[base]["free"] -= qty
         self.bal.setdefault("USDT", {"free": Dec(0), "locked": Dec(0)})["free"] += qty * price
         return o
+
+    def open_orders(self, symbol=None):
+        return []   # nos testes, os símbolos com ordens vêm dos trades ativos
