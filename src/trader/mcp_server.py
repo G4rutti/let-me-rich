@@ -99,6 +99,7 @@ def _symbol_ok(symbol: str):
 @safe
 def preflight() -> dict:
     """PASSO 1 do ciclo. status ABORT = encerre o ciclo sem fazer nada. MANAGE_ONLY = sem entradas novas."""
+    set_state(ctx().conn, "last_preflight", CYCLE_ID)   # o run_cycle confere: prova de que o MCP conectou
     return _preflight(ctx())
 
 

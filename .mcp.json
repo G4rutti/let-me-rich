@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "trader": {
+      "command": "uv",
+      "args": ["run", "--frozen", "--quiet", "python", "-m", "trader.mcp_server"],
+      "env": {
+        "TRADER_CYCLE_ID": "${TRADER_CYCLE_ID:-manual}",
+        "TRADER_CYCLE_KIND": "${TRADER_CYCLE_KIND:-cycle}"
+      }
+    }
+  }
+}

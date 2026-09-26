@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash", "PowerShell", "WebFetch", "WebSearch", "NotebookEdit",
+      "Edit", "Write", "Read", "Glob", "Grep",
+      "Read(**/.env)", "Edit(config/**)", "Edit(src/**)", "Edit(hooks/**)", "Edit(.mcp.json)", "Edit(.claude/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.venv/Scripts/python.exe\" \"$CLAUDE_PROJECT_DIR/hooks/guard.py\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
