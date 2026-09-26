@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS trades (
     symbol TEXT NOT NULL,
     category TEXT NOT NULL,
     setup TEXT NOT NULL,
+    horizon TEXT NOT NULL,              -- intraday | swing
     status TEXT NOT NULL,               -- pending | open | closed | cancelled
     entry_list_id TEXT UNIQUE NOT NULL, -- listClientOrderId do OPOCO
     protect_list_id TEXT,               -- OCO que protege a posição agora
@@ -27,9 +28,11 @@ CREATE TABLE IF NOT EXISTS trades (
     opened_at TEXT,
     closed_at TEXT,
     exit_price REAL,
-    exit_reason TEXT,                   -- stop | target | manual | partial_final | emergency | kill
-    realized_usd REAL DEFAULT 0,        -- PnL já realizado (parciais), líquido de taxa
-    fees_usd REAL DEFAULT 0,
+    exit_reason TEXT,                   -- stop | target | manual | emergency | kill | orphan
+    risk_usd REAL,                      -- risco inicial (para R múltiplo)
+    cost_usd REAL,                      -- USDT gasto na compra (+ taxa em USDT)
+    proceeds_usd REAL DEFAULT 0,        -- USDT recebido nas vendas (parciais + final), líquido
+    fees_usd REAL DEFAULT 0,            -- taxas pagas em outro ativo (BNB), em USD
     pnl_usd REAL,
     r_multiple REAL,
     usdt_brl REAL,                      -- cotação no fill (fiscal)

@@ -172,6 +172,18 @@ class Exchange:
     def my_trades(self, symbol: str, since_ms: int | None = None) -> list:
         return self._call(self.client.fetch_my_trades, symbol, since_ms)
 
+    def order_fills(self, symbol: str, order_id: str) -> dict:
+        """Execuções de uma ordem: qty, quote (USDT) e taxas por ativo. A Binance só informa taxa nos trades."""
+        trades = self._call(self.client.fetch_my_trades, symbol, None, None, {"orderId": order_id})
+        out = {"qty": D(0), "quote": D(0), "fees": {}}
+        for t in trades:
+            out["qty"] += D(t["amount"])
+            out["quote"] += D(t["cost"])
+            fee = t.get("fee") or {}
+            if fee.get("cost"):
+                out["fees"][fee["currency"]] = out["fees"].get(fee["currency"], D(0)) + D(fee["cost"])
+        return out
+
     def api_restrictions(self) -> dict:
         """Permissões da chave: enableWithdrawals, enableSpotAndMarginTrading, ipRestrict, ..."""
         return self._call(self.client.sapi_get_account_apirestrictions)

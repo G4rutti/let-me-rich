@@ -32,6 +32,7 @@ max_consecutive_order_failures: 3
 min_notional_buffer: 1.5         # entrada >= min notional do par x 1.5 (nunca aumenta o tamanho para caber)
 partial_min_notional_buffer: 1.1 # parcial: parte vendida e restante >= min notional x 1.1
 partial_fill_timeout_min: 10
+protect_orphans: true         # saldo sem trade conhecido ganha stop automático (ATR)
 
 bear_blocks: {major: true, alt: true, meme: true}
 timezone: America/Sao_Paulo
