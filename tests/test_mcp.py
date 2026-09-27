@@ -80,3 +80,10 @@ def test_weekly_cannot_trade(server, monkeypatch):
 def test_proposal_blocked_outside_weekly(server):
     r = call("write_proposal", {"title": "x" * 5, "body": "y" * 20})
     assert r.is_error and "WEEKLY_ONLY" in r.content[0].text
+
+
+def test_journal_texto_longo_e_cortado_nao_recusado(server):
+    r = call("write_journal", {"kind": "skip", "symbol": "BTC/USDT", "thesis": "x" * 450})
+    assert not r.is_error
+    row = server.conn.execute("SELECT thesis FROM journal WHERE id=?", (r.structured_content["journal_id"],)).fetchone()
+    assert len(row["thesis"]) == 300
