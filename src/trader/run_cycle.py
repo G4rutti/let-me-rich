@@ -85,6 +85,10 @@ CODEX_OFF = ("shell_tool", "unified_exec", "browser_use", "browser_use_external"
              "apps", "plugins", "in_app_browser", "image_generation", "view_image", "multi_agent", "tool_suggest",
              "skill_search", "goals", "sleep_tool")
 CODEX_NOTE = ("\n\n### Neste modo (Codex)\n"
+              "O servidor MCP `trader` está conectado, mas as tools dele NÃO aparecem soltas na sua lista: chame-as "
+              "por dentro do `functions.exec` (ex.: preflight, sync_positions, place_entry). Onde o texto diz "
+              "`mcp__trader__*`, entenda as tools desse servidor. Nunca conclua que estão indisponíveis sem antes "
+              "tentar chamar o preflight pelo functions.exec.\n"
               "Não há subagentes. Onde o texto manda usar o chart-reader, chame get_candles você mesmo (1h e 4h, "
               "limit 60, no máximo 4 pares). Onde manda chamar o bear-reviewer, escreva você mesmo, ANTES de decidir, "
               "o argumento mais forte CONTRA a entrada (tendência maior contra, rompimento sem volume, RSI esticado, "
@@ -111,7 +115,10 @@ def build_codex_cmd(kind: str, cycle_id: str, cc: dict, model: str | None, schem
            "-c", f"mcp_servers.trader.command={toml(mcp['command'])}",
            "-c", f"mcp_servers.trader.args={toml(mcp['args'])}",
            "-c", f"mcp_servers.trader.env={{TRADER_CYCLE_ID={toml(cycle_id)},TRADER_CYCLE_KIND={toml(kind)}}}",
-           "-c", "mcp_servers.trader.startup_timeout_sec=120", "-c", "mcp_servers.trader.tool_timeout_sec=600"]
+           "-c", "mcp_servers.trader.startup_timeout_sec=120", "-c", "mcp_servers.trader.tool_timeout_sec=600",
+           # sem isso o Codex pede aprovação p/ tools que escrevem e, com approval_policy=never, recusa todas.
+           # As travas de verdade (risk manager, RECUSADO, limites) estão no código do MCP.
+           "-c", 'mcp_servers.trader.default_tools_approval_mode="approve"']
     for f in CODEX_OFF:
         cmd += ["--disable", f]
     return cmd + ["-"]   # prompt via stdin: o CLAUDE.md passa do limite de linha de comando do Windows
