@@ -3,91 +3,98 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pregão 3D</title>
+<title>Pregão Hotel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #cfe0ee; --panel: rgba(255, 255, 255, .84); --line: rgba(20, 40, 70, .12); --text: #172033;
-    --dim: #5b6b82; --gold: #d4a017; --ok: #16a34a; --bad: #dc2626; --shadow: 0 10px 30px rgba(20, 40, 70, .16);
+    --ink: #1b1b1b; --win: #fbfbf6; --head: #2a7ab0; --head2: #1f5f8b; --line: #111; --dim: #6b6b6b;
+    --ok: #1f9d4b; --bad: #d8323c; --gold: #f2c14e;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
-    font: 13px/1.45 Inter, "Segoe UI", system-ui, sans-serif; }
-  #scene, #labels { position: fixed; inset: 0; }
-  #labels { pointer-events: none; }
-  .panel { position: fixed; background: var(--panel); border: 1px solid rgba(255,255,255,.7); border-radius: 14px;
-    box-shadow: var(--shadow); backdrop-filter: blur(10px) saturate(1.2); }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #5fb6e8; color: var(--ink);
+    font: 13px/1.35 Ubuntu, "Segoe UI", sans-serif; }
+  #scene, #labels, #bubbles { position: fixed; inset: 0; }
+  #scene canvas { image-rendering: pixelated; }
+  #labels, #bubbles { pointer-events: none; }
 
-  #top { top: 14px; left: 14px; right: 394px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  #top h1 { margin: 0 8px 0 4px; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
-  #top h1 span { color: var(--gold); }
-  select, button { font: inherit; color: var(--text); background: #fff; border: 1px solid var(--line); border-radius: 8px;
-    padding: 6px 10px; cursor: pointer; }
-  button:hover, select:hover { border-color: rgba(20,40,70,.3); }
-  button.on { background: #172033; color: #fff; border-color: #172033; }
-  #live .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #9aa6b8; margin-right: 6px; }
-  #live.on { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
-  #live.on .dot { background: var(--bad); animation: pulse 1s infinite; }
+  /* janelas e botões do Habbo */
+  .win { position: fixed; background: var(--win); border: 2px solid var(--line); border-radius: 8px;
+    box-shadow: 0 3px 0 rgba(0,0,0,.35); overflow: hidden; }
+  .win > header { background: linear-gradient(var(--head), var(--head2)); color: #fff; font-weight: 700; padding: 5px 10px;
+    border-bottom: 2px solid var(--line); text-shadow: 0 1px 0 rgba(0,0,0,.4); display: flex; justify-content: space-between; align-items: center; }
+  .win > header small { font-weight: 400; opacity: .85; }
+  .btn, select { font: 500 12px Ubuntu, sans-serif; color: var(--ink); background: linear-gradient(#fff, #dcdcd4);
+    border: 2px solid var(--line); border-radius: 6px; padding: 4px 9px; cursor: pointer; box-shadow: 0 2px 0 rgba(0,0,0,.35); }
+  .btn:hover, select:hover { background: linear-gradient(#fff, #ecece4); }
+  .btn:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(0,0,0,.35); }
+  .btn.on { background: linear-gradient(#5ec27a, #2f9a50); color: #fff; }
+  #live .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #999; margin-right: 5px; border: 1px solid #000; }
+  #live.on { background: linear-gradient(#ff6b6b, #d8323c); color: #fff; }
+  #live.on .dot { background: #fff; animation: pulse 1s infinite; }
   @keyframes pulse { 50% { opacity: .3; } }
 
-  #side { top: 14px; right: 14px; bottom: 14px; width: 366px; display: flex; flex-direction: column; overflow: hidden; }
-  #side header { padding: 12px 14px 8px; border-bottom: 1px solid var(--line); }
-  #side header h2 { margin: 0 0 2px; font-size: 13px; font-weight: 700; }
-  #meta { color: var(--dim); font-size: 12px; }
-  .live-tag { color: var(--bad); font-weight: 600; }
-  #chat { flex: 1; overflow-y: auto; padding: 10px 12px; scroll-behavior: smooth; }
-  .msg { display: flex; gap: 9px; margin-bottom: 11px; animation: in .25s ease-out; }
-  @keyframes in { from { opacity: 0; transform: translateY(6px); } }
-  .msg > i { flex: none; width: 26px; height: 26px; border-radius: 50%; color: #fff; font: 700 12px/26px Inter, sans-serif;
-    text-align: center; font-style: normal; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
+  #top { top: 10px; left: 10px; right: 390px; }
+  #top .bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 7px 8px; }
+
+  #side { top: 10px; right: 10px; bottom: 10px; width: 368px; display: flex; flex-direction: column; }
+  #meta { padding: 6px 10px; color: var(--dim); font-size: 12px; border-bottom: 1px solid #ddd; }
+  .live-tag { color: var(--bad); font-weight: 700; }
+  #chat { flex: 1; overflow-y: auto; padding: 8px 10px; background: #fff; }
+  .msg { display: flex; gap: 8px; margin-bottom: 9px; }
+  .msg > i { flex: none; width: 24px; height: 24px; border-radius: 50%; border: 2px solid #000; color: #fff; font: 700 11px/20px Ubuntu;
+    text-align: center; font-style: normal; }
   .msg > div { min-width: 0; flex: 1; }
-  .msg b { font-weight: 600; }
-  .msg .to { color: var(--dim); font-size: 11px; margin-left: 6px; }
-  .msg code { float: right; font: 10px ui-monospace, Consolas, monospace; color: var(--dim); background: rgba(20,40,70,.06);
-    padding: 1px 5px; border-radius: 4px; }
-  .msg p { margin: 2px 0 0; white-space: pre-wrap; word-break: break-word; }
+  .msg .to { color: var(--dim); font-size: 11px; margin-left: 5px; }
+  .msg code { float: right; font: 10px Consolas, monospace; color: var(--dim); background: #f0f0ea; border: 1px solid #ddd; padding: 0 4px; border-radius: 3px; }
+  .msg p { margin: 1px 0 0; white-space: pre-wrap; word-break: break-word; }
   .msg.think p { color: var(--dim); font-style: italic; }
-  .msg.bad p { color: #991b1b; } .msg.good p { color: #166534; }
-  .msg.sys { justify-content: center; color: var(--dim); font-size: 11px; text-align: center; }
-  #summary { border-top: 1px solid var(--line); padding: 10px 14px 12px; max-height: 34%; overflow-y: auto; font-size: 12px; }
+  .msg.bad p { color: #a3151f; } .msg.good p { color: #167a3a; }
+  .msg.sys { justify-content: center; color: var(--dim); font-size: 11px; }
+  #summary { border-top: 2px solid var(--line); padding: 8px 10px; max-height: 32%; overflow-y: auto; font-size: 12px; background: #f6f3e7; }
   #summary:empty { display: none; }
-  .sumh { font-weight: 700; margin-bottom: 6px; }
-  .act { margin: 4px 0; color: var(--dim); } .act b { color: var(--text); margin-right: 5px; }
-  .pill { display: inline-block; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
-    padding: 1px 6px; border-radius: 999px; margin-right: 6px; background: #e5e9f0; color: #475569; }
-  .pill.entry { background: #dcfce7; color: #166534; } .pill.skip { background: #f1f5f9; }
-  .pill.close, .pill.rejected { background: #fee2e2; color: #991b1b; } .pill.hold, .pill.move_stop, .pill.partial { background: #fef3c7; color: #92400e; }
+  .sumh { font-weight: 700; margin-bottom: 5px; }
+  .act { margin: 3px 0; color: var(--dim); } .act b { color: var(--ink); margin-right: 5px; }
+  .pill { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 0 6px; border: 1px solid #000;
+    border-radius: 4px; margin-right: 5px; background: #eee; }
+  .pill.entry { background: #9be3b0; } .pill.close, .pill.rejected { background: #ffb3b8; }
+  .pill.hold, .pill.move_stop, .pill.partial { background: #ffe39a; }
 
-  #bar { left: 14px; bottom: 14px; padding: 8px 14px; display: flex; gap: 18px; flex-wrap: wrap; }
-  #bar span { color: var(--dim); margin-right: 6px; font-size: 12px; }
+  /* caixa da sala (canto inferior esquerdo) + status */
+  #room { left: 10px; bottom: 10px; min-width: 250px; }
+  #room header { background: linear-gradient(#3b3b3b, #1f1f1f); }
+  #room .body { padding: 6px 10px 8px; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; }
+  #room .body span { color: var(--dim); }
   #s-regime[data-v="BULL"] { color: var(--ok); } #s-regime[data-v="BEAR"] { color: var(--bad); }
-  #hint { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); color: rgba(23,32,51,.55); font-size: 11px; pointer-events: none; }
+  #hint { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); color: rgba(0,0,0,.55); font-size: 11px; pointer-events: none; }
 
-  /* crachás e balões no 3D */
-  .name { display: flex; align-items: center; gap: 5px; padding: 2px 8px 2px 5px; border-radius: 999px; white-space: nowrap;
-    background: rgba(255,255,255,.9); box-shadow: 0 2px 8px rgba(0,0,0,.15); font-size: 11px; }
-  .name i { width: 8px; height: 8px; border-radius: 50%; }
-  .name span { font-weight: 700; }
-  .name small { color: var(--dim); font-size: 10px; }
-  .anchor { width: 0; height: 0; }
-  .bubble { position: absolute; left: 0; bottom: 16px; width: max-content; max-width: 290px; translate: -50% 0; padding: 8px 11px; border-radius: 12px; background: #fff; color: var(--text);
-    border-left: 4px solid var(--c); box-shadow: 0 8px 24px rgba(20,40,70,.25); font-size: 12.5px; line-height: 1.4;
-    opacity: 0; transform: translateY(8px) scale(.96); transition: opacity .22s, transform .22s; transform-origin: bottom center;
-    pointer-events: none; }
-  .bubble::after { content: ""; position: absolute; left: 50%; bottom: -7px; margin-left: -7px; border: 7px solid transparent;
-    border-bottom: 0; border-top-color: #fff; }
-  .bubble.show { opacity: 1; transform: none; }
-  .bubble em { display: block; font-style: normal; font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
-  .bubble.think { background: #f1f5f9; font-style: italic; color: #475569; border-left-style: dashed; }
-  .bubble.think::after { border-top-color: #f1f5f9; }
-  .bubble.bad { background: #fff1f1; border-left-color: var(--bad); } .bubble.bad::after { border-top-color: #fff1f1; }
-  .bubble.good { background: #effdf4; border-left-color: var(--ok); } .bubble.good::after { border-top-color: #effdf4; }
+  /* crachá sobre a cabeça */
+  .name { display: flex; align-items: center; gap: 4px; padding: 1px 7px 1px 4px; border-radius: 4px; white-space: nowrap;
+    background: rgba(0,0,0,.72); color: #fff; font: 700 11px Ubuntu, sans-serif; position: relative; }
+  .name i { width: 8px; height: 8px; border-radius: 50%; border: 1px solid #fff; }
+  .name small { font-weight: 400; opacity: .75; font-size: 10px; }
+  .name.talking::after { content: "…"; position: absolute; right: -18px; top: -14px; background: #fff; color: #000; border: 2px solid #000;
+    border-radius: 8px; padding: 0 5px; line-height: 14px; font-size: 14px; animation: bob .5s ease-in-out infinite alternate; }
+  @keyframes bob { to { transform: translateY(-3px); } }
+
+  /* chat estilo Habbo: balões brancos com nome em negrito, sobem empilhados */
+  .hb { position: absolute; max-width: 420px; display: flex; align-items: flex-start; gap: 6px; padding: 3px 9px 3px 3px;
+    background: #fff; border: 2px solid #000; border-radius: 9px; box-shadow: 0 2px 0 rgba(0,0,0,.3); font-size: 12.5px;
+    line-height: 1.3; transition: top .35s ease, opacity .6s; animation: pop .18s ease-out; }
+  @keyframes pop { from { transform: scale(.7); opacity: 0; } }
+  .hb i { flex: none; width: 20px; height: 20px; border-radius: 5px; border: 2px solid #000; color: #fff; font: 700 10px/16px Ubuntu;
+    text-align: center; font-style: normal; }
+  .hb b { margin-right: 4px; white-space: nowrap; }
+  .hb em { font-style: normal; color: var(--dim); font-size: 11px; margin-right: 4px; white-space: nowrap; }
+  .hb span { overflow-wrap: anywhere; }
+  .hb.think { background: #eef2f7; border-style: dashed; color: #444; font-style: italic; }
+  .hb.bad { background: #ffe4e6; } .hb.good { background: #e3f9e9; }
+  .hb.gone { opacity: 0; }
 
   @media (max-width: 860px) {
-    #top { right: 14px; }
-    #side { top: auto; height: 40%; left: 14px; width: auto; }
-    #bar { bottom: calc(40% + 24px); }
+    #top { right: 10px; }
+    #side { top: auto; height: 38%; left: 10px; width: auto; }
+    #room { bottom: calc(38% + 20px); }
   }
 </style>
 <script type="importmap">
@@ -100,32 +107,40 @@
 <body>
 <div id="scene"></div>
 <div id="labels"></div>
+<div id="bubbles"></div>
 
-<div id="top" class="panel">
-  <h1>Pregão <span>3D</span></h1>
-  <select id="cycles" title="ciclo"></select>
-  <button id="play">⏸ pausar</button>
-  <button id="restart">⟲ do início</button>
-  <select id="speed" title="velocidade">
-    <option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option>
-  </select>
-  <button id="live"><span class="dot"></span>ao vivo</button>
-  <button id="follow">🎥 seguir conversa</button>
+<div id="top" class="win">
+  <div class="bar">
+    <select id="cycles" title="ciclo"></select>
+    <button id="play" class="btn">⏸ pausar</button>
+    <button id="restart" class="btn">⟲ do início</button>
+    <select id="speed" title="velocidade">
+      <option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option>
+    </select>
+    <button id="live" class="btn"><span class="dot"></span>ao vivo</button>
+    <button id="follow" class="btn">🎥 seguir conversa</button>
+    <button id="center" class="btn">⌂ centralizar</button>
+    <button id="pixel" class="btn">▦ pixel 2×</button>
+  </div>
 </div>
 
-<aside id="side" class="panel">
-  <header><h2>Conversa</h2><div id="meta">—</div></header>
+<aside id="side" class="win">
+  <header>Histórico da conversa</header>
+  <div id="meta">—</div>
   <div id="chat"></div>
   <div id="summary"></div>
 </aside>
 
-<div id="bar" class="panel">
-  <div><span>regime</span><b id="s-regime">—</b></div>
-  <div><span>banca</span><b id="s-equity">—</b></div>
-  <div><span>posições</span><b id="s-pos">—</b></div>
-  <div><span>tokens</span><b id="s-tokens">—</b></div>
+<div id="room" class="win">
+  <header>★ Pregão ★ <small id="room-sub">let-me-rich</small></header>
+  <div class="body">
+    <span>regime</span><b id="s-regime">—</b>
+    <span>banca</span><b id="s-equity">—</b>
+    <span>posições</span><b id="s-pos">—</b>
+    <span>tokens</span><b id="s-tokens">—</b>
+  </div>
 </div>
-<div id="hint">arraste para girar · scroll para zoom · botão direito para mover</div>
+<div id="hint">arraste para mover · scroll para zoom</div>
 
 <script type="module" src="/js/main.js"></script>
 </body>

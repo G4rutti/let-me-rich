@@ -4,15 +4,15 @@ import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
 const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.62, ...o });
 const G = {                                   // geometrias compartilhadas
-  thigh: new THREE.CapsuleGeometry(0.078, 0.34, 4, 10),
-  shin: new THREE.CapsuleGeometry(0.066, 0.34, 4, 10),
-  upper: new THREE.CapsuleGeometry(0.058, 0.24, 4, 10),
-  fore: new THREE.CapsuleGeometry(0.05, 0.22, 4, 10),
-  hand: new THREE.SphereGeometry(0.052, 10, 8),
-  shoe: new THREE.BoxGeometry(0.12, 0.08, 0.27),
+  thigh: new THREE.CapsuleGeometry(0.1, 0.32, 4, 10),
+  shin: new THREE.CapsuleGeometry(0.088, 0.32, 4, 10),
+  upper: new THREE.CapsuleGeometry(0.078, 0.22, 4, 10),
+  fore: new THREE.CapsuleGeometry(0.07, 0.2, 4, 10),
+  hand: new THREE.SphereGeometry(0.07, 10, 8),
+  shoe: new THREE.BoxGeometry(0.16, 0.1, 0.3),
   torso: new THREE.CylinderGeometry(0.205, 0.165, 0.56, 18),
   belt: new THREE.CylinderGeometry(0.168, 0.17, 0.12, 18),
-  neck: new THREE.CylinderGeometry(0.05, 0.055, 0.1, 10),
+  neck: new THREE.CylinderGeometry(0.07, 0.075, 0.1, 10),
   head: new THREE.SphereGeometry(0.118, 22, 18),
   eye: new THREE.SphereGeometry(0.017, 8, 6),
   ear: new THREE.SphereGeometry(0.028, 8, 6),
@@ -74,7 +74,7 @@ export class Person {
     mesh(G.belt, pants, p, 0, 0.02, 0);
     // pernas
     this.legs = [-1, 1].map((s) => {
-      const hip = new THREE.Group(); hip.position.set(s * 0.095, 0, 0); p.add(hip);
+      const hip = new THREE.Group(); hip.position.set(s * 0.11, 0, 0); p.add(hip);
       mesh(G.thigh, pants, hip, 0, -0.22, 0);
       const knee = new THREE.Group(); knee.position.y = -0.45; hip.add(knee);
       mesh(G.shin, pants, knee, 0, -0.21, 0);
@@ -83,13 +83,13 @@ export class Person {
     });
     // tronco
     const chest = this.chest = new THREE.Group(); chest.position.y = 0.04; p.add(chest);
-    const torso = mesh(G.torso, suit, chest, 0, 0.3, 0); torso.scale.z = 0.62;
+    const torso = mesh(G.torso, suit, chest, 0, 0.3, 0); torso.scale.set(1.28, 1, 0.8);   // tronco largo, jeito Habbo
     const col = new THREE.Mesh(G.collar, white); col.position.set(0, 0.47, 0.109); chest.add(col);
     if (o.tie !== null && !o.noTie) mesh(G.tie, tieM, chest, 0, 0.4, 0.118, false);
     else { const sc = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.018, 8, 20), tieM); sc.rotation.x = Math.PI / 2 - 0.3; sc.position.set(0, 0.56, 0.02); chest.add(sc); }
     mesh(G.neck, skin, chest, 0, 0.62, 0);
     // cabeça
-    const head = this.head = new THREE.Group(); head.position.y = 0.7; chest.add(head);
+    const head = this.head = new THREE.Group(); head.position.y = 0.64; head.scale.setScalar(1.9); chest.add(head);   // cabeção, jeito Habbo
     const skull = mesh(G.head, skin, head, 0, 0.1, 0); skull.scale.set(0.93, 1.1, 1);
     this.eyes = [-1, 1].map((s) => mesh(G.eye, black, head, s * 0.04, 0.12, 0.1, false));
     [-1, 1].forEach((s) => { const b = mesh(G.brow, hairM, head, s * 0.041, 0.152, 0.106, false); b.rotation.z = -s * 0.12; });
@@ -103,7 +103,7 @@ export class Person {
     }
     // braços
     this.arms = [-1, 1].map((s) => {
-      const sh = new THREE.Group(); sh.position.set(s * 0.235, 0.54, 0); chest.add(sh);
+      const sh = new THREE.Group(); sh.position.set(s * 0.29, 0.52, 0); chest.add(sh);
       mesh(G.upper, suit, sh, 0, -0.16, 0);
       const el = new THREE.Group(); el.position.y = -0.31; sh.add(el);
       mesh(G.fore, suit, el, 0, -0.14, 0);
@@ -111,17 +111,14 @@ export class Person {
       return { sh, el };
     });
 
-    // rótulo e balão presos à cabeça (acompanham sentar/levantar)
+    // crachá preso à cabeça (acompanha sentar/levantar); as falas vão para o chat do topo, como no Habbo
     if (o.name) {   // figurantes não têm crachá
-      const tag = document.createElement("div"); tag.className = "name";
+      const tag = this.tag = document.createElement("div"); tag.className = "name";
       tag.innerHTML = `<i style="background:${o.color}"></i><span>${o.name}</span><small>${o.role}</small>`;
-      this.tagObj = new CSS2DObject(tag); this.tagObj.position.set(0, 0.42, 0); head.add(this.tagObj);
+      this.tagObj = new CSS2DObject(tag); this.tagObj.position.set(0, 0.3, 0); head.add(this.tagObj);
     }
-    // balão: âncora de tamanho zero no mesmo ponto do crachá; o balão sobe em pixels (nunca cobre o nome)
-    const anchor = document.createElement("div"); anchor.className = "anchor";
-    const b = document.createElement("div"); b.className = "bubble"; b.style.setProperty("--c", o.color); anchor.appendChild(b);
-    this.bubble = b; this.bubbleObj = new CSS2DObject(anchor); this.bubbleObj.position.set(0, 0.42, 0); head.add(this.bubbleObj);
-    this.bubbleTimer = 0;
+    const blob = new THREE.Mesh(new THREE.CircleGeometry(0.34, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false }));
+    blob.rotation.x = -Math.PI / 2; blob.position.y = 0.02; blob.scale.set(1.25, 0.9, 1); this.root.add(blob);   // sombra redonda
 
     this.state = "stand"; this.path = []; this.onArrive = null;
     this.talkUntil = 0; this.typing = false; this.lookAt = null; this.phase = Math.random() * 10;
@@ -136,15 +133,7 @@ export class Person {
     return new Promise((r) => (this.onArrive = r));
   }
   faceTo(v) { const d = new THREE.Vector3().subVectors(v, this.pos); this.targetYaw = Math.atan2(d.x, d.z); }
-  say(html, { kind = "", ms = 3000, to = "" } = {}) {
-    const b = this.bubble; clearTimeout(this.bubbleTimer);
-    b.className = "bubble " + kind;
-    b.innerHTML = (to ? `<em>para ${to}</em>` : "") + html;
-    void b.offsetWidth; b.classList.add("show");   // reflow força a transição sem depender de frame
-    if (kind !== "think") this.talkUntil = performance.now() + Math.min(ms, 4000);
-    if (ms) this.bubbleTimer = setTimeout(() => b.classList.remove("show"), ms);
-  }
-  hush() { clearTimeout(this.bubbleTimer); this.bubble.classList.remove("show"); }
+  talk(ms) { this.talkUntil = performance.now() + Math.min(ms, 4000); }   // boca + gesto; o texto vai pro chat
   worldHead() { return this.head.getWorldPosition(new THREE.Vector3()); }
 
   update(dt, t, speed) {
@@ -182,6 +171,7 @@ export class Person {
     }
     // falando: boca, cabeça e mão direita
     const talking = performance.now() < this.talkUntil;
+    if (this.tag && talking !== this._talkingTag) { this.tag.classList.toggle("talking", talking); this._talkingTag = talking; }
     this.mouth.scale.y = talking ? 1 + Math.abs(Math.sin(t * 17 + this.seed)) * 3.2 : 1;
     if (talking) {
       headX += Math.sin(t * 4.5) * 0.06;

@@ -1,6 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPixelatedPass } from "three/addons/postprocessing/RenderPixelatedPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { buildWorld } from "./world.js";
 import { Person } from "./people.js";
 import { beatsFor, IDLE, STATION_OF } from "./story.js";
@@ -9,43 +12,48 @@ const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const speed = () => Number($("speed").value);
+const SIDE = () => (innerWidth > 860 ? 380 : 0);   // largura ocupada pelo painel da conversa
 
-// ------------------------------------------------------------------ render
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
-renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.55;
+// ------------------------------------------------------------------ render: isométrico 2:1 + pixel art com contorno
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight);
 $("scene").appendChild(renderer.domElement);
 const labels = new CSS2DRenderer(); labels.setSize(innerWidth, innerHeight); $("labels").appendChild(labels.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 5000);
-camera.position.set(4, 17, 22);
-// o painel da conversa ocupa a direita: desloca o centro da projeção para a área livre
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -300, 500);
+const VIEW = 10.5;                                  // meia altura visível, em metros (zoom 1)
 function fitView() {
-  const P = innerWidth > 860 ? 380 : 0;
-  camera.aspect = (innerWidth + P) / innerHeight;   // aspect do quadro virtual inteiro (pixels quadrados)
-  if (P) camera.setViewOffset(innerWidth + P, innerHeight, P, 0, innerWidth, innerHeight); else camera.clearViewOffset();
+  const P = SIDE(), fullW = innerWidth + P, a = fullW / innerHeight;
+  Object.assign(camera, { left: -VIEW * a, right: VIEW * a, top: VIEW, bottom: -VIEW });
+  if (P) camera.setViewOffset(fullW, innerHeight, P, 0, innerWidth, innerHeight); else camera.clearViewOffset();
   camera.updateProjectionMatrix();
 }
+const TARGET = new THREE.Vector3(0.5, 0.8, -6);
+const ISO = new THREE.Vector3(Math.SQRT1_2 * Math.cos(Math.PI / 6), Math.sin(Math.PI / 6), Math.SQRT1_2 * Math.cos(Math.PI / 6));   // azimute 45°, 30° de altura = 2:1
+camera.position.copy(TARGET).addScaledVector(ISO, 80);
 fitView();
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0.8, -5); controls.enableDamping = true;
-controls.maxPolarAngle = Math.PI * 0.46; controls.minDistance = 4; controls.maxDistance = 60;
+controls.target.copy(TARGET);
+Object.assign(controls, { enableRotate: false, screenSpacePanning: true, minZoom: 0.5, maxZoom: 3, enableDamping: true });
+controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN };
 
-const world = buildWorld(scene, renderer);
+const composer = new EffectComposer(renderer);
+let pixel = 2;
+const pixelPass = new RenderPixelatedPass(pixel, scene, camera, { normalEdgeStrength: 0.35, depthEdgeStrength: 0.7 });
+composer.addPass(pixelPass); composer.addPass(new OutputPass());
+
+const world = buildWorld(scene);
 
 // ------------------------------------------------------------------ elenco
 const cast = {
-  astra: new Person(scene, { name: "Astra", role: "operador", color: "#d4a017", suit: 0x1c2a4a, tie: 0xc9a14a, skin: 0xe8b88f, hair: 0x3b2618, hairStyle: "side" }),
-  luna: new Person(scene, { name: "Luna", role: "gráficos", color: "#8b7cf6", suit: 0x3b2f5c, noTie: true, tie: 0xb7a9ff, skin: 0xf1c9a5, hair: 0x141414, hairStyle: "bob", glasses: true }),
-  sol: new Person(scene, { name: "Sol", role: "advogado do diabo", color: "#f26b38", suit: 0x2f2f33, tie: 0xff7a45, skin: 0xa8704a, hair: 0x111111, hairStyle: "curly" }),
-  mesa: new Person(scene, { name: "Mesa", role: "exchange · código", color: "#1f9bd1", suit: 0x1f4f6b, tie: 0x4cc9f0, skin: 0xc68a5e, hair: 0x2a1a10, hairStyle: "short" }),
-  guarda: new Person(scene, { name: "Guarda", role: "risk manager · código", color: "#64748b", suit: 0x1d1f23, tie: 0x6b7280, skin: 0x8d5a3b, hair: 0x111111, hairStyle: "bald" }),
-  arquivista: new Person(scene, { name: "Arquivista", role: "diário · código", color: "#a47b3b", suit: 0x6b4a2e, noTie: true, tie: 0xd6b98c, skin: 0xf0c8a0, hair: 0x9a9a9a, hairStyle: "bun", glasses: true }),
+  astra: new Person(scene, { name: "Astra", role: "operador", color: "#e0a800", suit: 0x1c2a4a, tie: 0xf2c14e, skin: 0xf0c08f, hair: 0x5a3418, hairStyle: "side" }),
+  luna: new Person(scene, { name: "Luna", role: "gráficos", color: "#8b5cf6", suit: 0x6d4bc4, noTie: true, tie: 0xd9ccff, skin: 0xf6d2b0, hair: 0x1a1a1a, hairStyle: "bob", glasses: true }),
+  sol: new Person(scene, { name: "Sol", role: "advogado do diabo", color: "#f26b38", suit: 0xe0562a, tie: 0x2a2a2a, skin: 0xb07650, hair: 0x151515, hairStyle: "curly" }),
+  mesa: new Person(scene, { name: "Mesa", role: "exchange · código", color: "#1f9bd1", suit: 0x1f7fb3, tie: 0xffffff, skin: 0xd09a6a, hair: 0x2a1a10, hairStyle: "short" }),
+  guarda: new Person(scene, { name: "Guarda", role: "risk manager · código", color: "#475569", suit: 0x2b2f36, tie: 0xd8323c, skin: 0x8d5a3b, hair: 0x111111, hairStyle: "bald", glasses: true }),
+  arquivista: new Person(scene, { name: "Arquivista", role: "diário · código", color: "#b7791f", suit: 0x3fa34d, noTie: true, tie: 0xf2c14e, skin: 0xf3cfa6, hair: 0xb8b8b8, hairStyle: "bun", glasses: true }),
 };
 const NAMES = { astra: "Astra", luna: "Luna", sol: "Sol", mesa: "Mesa", guarda: "Guarda", arquivista: "Arquivista", todos: "todos" };
 const V = (x, z) => new THREE.Vector3(x, 0, z);
@@ -54,16 +62,28 @@ cast.luna.sit(world.luna.seat, world.luna.faceAngle);
 cast.sol.sit(world.sol.seat, world.sol.faceAngle);
 cast.mesa.place(V(0, -15.9), 0);
 cast.guarda.place(V(-13.2, -14.9), Math.atan2(13.2, 9.9));
-cast.arquivista.place(V(15.9, -9.6), -Math.PI / 2);
+cast.arquivista.place(V(13, -15.6), 0);
 const extras = world.traders.map((t, i) => {
-  const looks = [[0x2d3342, 0xe0b089, "short", 0x3b2618], [0x4a3b30, 0xc68a5e, "long", 0x2a1a10], [0x23303d, 0xf1c9a5, "curly", 0x6b4a2e], [0x3a3f4f, 0x8d5a3b, "bald", 0x111111]][i];
-  const p = new Person(scene, { suit: looks[0], tie: 0x4cc9f0, skin: looks[1], hair: looks[3], hairStyle: looks[2], noTie: i === 1 });
+  const looks = [[0xd8323c, 0xf0c08f, "short", 0x3b2618], [0x2f6fb3, 0xd09a6a, "long", 0x6b3a1e], [0xf2c14e, 0xf6d2b0, "curly", 0x1a1a1a], [0x3fa34d, 0x8d5a3b, "bun", 0x111111]][i];
+  const p = new Person(scene, { suit: looks[0], tie: 0xffffff, skin: looks[1], hair: looks[3], hairStyle: looks[2], noTie: i % 2 === 1 });
   p.sit(t.seat, Math.PI); p.typing = true; return p;
 });
 const everyone = [...Object.values(cast), ...extras];
 
+// materiais → toon (sombreamento em degraus, cor chapada)
+const grad = new THREE.DataTexture(new Uint8Array([110, 185, 255]), 3, 1, THREE.RedFormat);
+grad.minFilter = grad.magFilter = THREE.NearestFilter; grad.needsUpdate = true;
+const toonCache = new Map();
+const toon = (m) => {
+  if (!(m.isMeshStandardMaterial || m.isMeshLambertMaterial || m.isMeshPhysicalMaterial)) return m;
+  if (!toonCache.has(m)) toonCache.set(m, new THREE.MeshToonMaterial({ color: m.color, map: m.map, gradientMap: grad,
+    transparent: m.transparent, opacity: m.opacity, side: m.side, depthWrite: m.depthWrite, emissive: m.emissive, emissiveIntensity: m.emissiveIntensity }));
+  return toonCache.get(m);
+};
+scene.traverse((o) => { if (o.isMesh) o.material = Array.isArray(o.material) ? o.material.map(toon) : toon(o.material); });
+
 // onde o operador para para falar com cada um
-const SPOT = { mesa: V(0, -13.6), guarda: V(-11.5, -12.8), arquivista: V(13.6, -9.6), luna: V(-10.9, -3), sol: V(10.9, -3) };
+const SPOT = { mesa: V(0, -13.6), guarda: V(-11.5, -12.8), arquivista: V(13, -12.9), luna: V(-10.9, -3), sol: V(10.9, -3) };
 const HUB = V(0, -6.8), DESK_EXIT = V(0, -3.05);
 
 async function astraGo(key) {
@@ -82,8 +102,30 @@ async function astraGo(key) {
   a.faceTo(cast[key].pos);
 }
 
+// ------------------------------------------------------------------ chat estilo Habbo: nasce na altura de quem fala e sobe
+const flying = [];
+function habboSay(p, text, { kind = "", to = "" } = {}) {
+  const el = document.createElement("div");
+  el.className = `hb ${kind}`;
+  el.innerHTML = `<i style="background:${p.o.color}">${esc(p.o.name[0])}</i><b>${esc(p.o.name)}</b>` +
+    (to ? `<em>→ ${esc(to)}</em>` : "") + `<span>${kind === "think" ? "💭 " : ""}${esc(text).replace(/\n/g, "<br>")}</span>`;
+  $("bubbles").appendChild(el);
+  const v = p.worldHead().project(camera);
+  const x = (v.x * 0.5 + 0.5) * innerWidth, w = el.offsetWidth;
+  el.style.left = Math.max(10, Math.min(innerWidth - SIDE() - w - 24, x - w / 2)) + "px";
+  flying.push({ el, h: el.offsetHeight });
+  // o mais novo fica na linha de base; cada um acima encosta no de baixo pela própria altura
+  let y = Math.round(innerHeight * 0.36);
+  for (let i = flying.length - 1; i >= 0; i--) {
+    const b = flying[i]; if (i < flying.length - 1) y -= b.h + 5;
+    b.y = y; b.el.style.top = y + "px"; if (y < 64) b.el.classList.add("gone");
+  }
+  while (flying.length && flying[0].y < -160) flying.shift().el.remove();
+}
+function clearBubbles() { flying.splice(0).forEach((b) => b.el.remove()); }
+
 // ------------------------------------------------------------------ estado do pregão (telão, letreiro, barra)
-const state = { regime: "—", btc: null, equity: null, free: null, positions: [], candidates: [], passed: null, last: "aguardando o próximo ciclo…", tokens: null, preflight: "" };
+const state = { regime: "—", btc: null, equity: null, free: null, positions: [], candidates: [], passed: null, last: "aguardando o próximo ciclo…", tokens: null };
 function absorb(tool, d) {
   if (!d) return;
   if (tool === "get_regime") { state.regime = d.regime; state.btc = d.btc_price; }
@@ -91,7 +133,6 @@ function absorb(tool, d) {
     const p = tool === "get_portfolio" ? d : d.portfolio; state.equity = p.equity_usd; state.free = p.free_usdt; state.positions = p.positions || [];
   }
   if (tool === "scan_market") { state.candidates = d.candidates || []; state.passed = d.passed_filters; }
-  if (tool === "preflight") state.preflight = d.status;
   renderBar();
 }
 function renderBar() {
@@ -101,79 +142,65 @@ function renderBar() {
   $("s-tokens").textContent = state.tokens ? `${Math.round(state.tokens.input_tokens / 1000)}k` : "—";
 }
 const chartSeed = Array.from({ length: 120 }, (_, i) => Math.sin(i * 0.21) * 12 + Math.sin(i * 0.05) * 30 + i * 0.4);
-function drawWall(now) {
-  const { g, c, t } = world.exchange.wall, W = c.width, H = c.height;
-  const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, "#07111f"); bg.addColorStop(1, "#0b1a2e");
-  g.fillStyle = bg; g.fillRect(0, 0, W, H);
-  g.fillStyle = "#e8eef8"; g.font = "600 54px Inter, Segoe UI, sans-serif"; g.fillText("PREGÃO · SPOT USDT", 56, 90);
-  g.fillStyle = "#7f93b0"; g.font = "36px Consolas, monospace"; g.fillText(new Date(now).toLocaleTimeString("pt-BR"), W - 250, 88);
-  // regime pill
+function drawWall(now) {   // desenha em coordenadas 2048×704 e escala para o canvas (menor = mais "pixel")
+  const { g, c, t } = world.exchange.wall, W = 2048, H = 704;
+  g.setTransform(c.width / W, 0, 0, c.height / H, 0, 0);
+  g.fillStyle = "#0b1a2e"; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#e8eef8"; g.font = "bold 58px monospace"; g.fillText("PREGÃO · SPOT USDT", 56, 92);
+  g.fillStyle = "#7f93b0"; g.font = "40px monospace"; g.fillText(new Date(now).toLocaleTimeString("pt-BR"), W - 260, 90);
   const rc = state.regime === "BULL" ? "#22c55e" : state.regime === "BEAR" ? "#ef4444" : "#eab308";
-  g.fillStyle = rc; g.beginPath(); g.roundRect(56, 125, 330, 74, 37); g.fill();
-  g.fillStyle = "#06101c"; g.font = "700 42px Inter, Segoe UI, sans-serif"; g.fillText(`REGIME ${state.regime}`, 82, 176);
-  g.fillStyle = "#e8eef8"; g.font = "600 44px Inter, Segoe UI, sans-serif";
-  g.fillText(`BANCA ${state.equity != null ? "US$ " + state.equity.toFixed(2) : "—"}`, 430, 176);
-  g.fillText(`BTC ${state.btc ? "US$ " + Math.round(state.btc).toLocaleString("pt-BR") : "—"}`, 960, 176);
-  // gráfico decorativo animado
+  g.fillStyle = rc; g.fillRect(56, 128, 340, 72);
+  g.fillStyle = "#06101c"; g.font = "bold 44px monospace"; g.fillText(`REGIME ${state.regime}`, 76, 178);
+  g.fillStyle = "#e8eef8"; g.font = "bold 46px monospace";
+  g.fillText(`BANCA ${state.equity != null ? "$" + state.equity.toFixed(2) : "—"}`, 440, 178);
+  g.fillText(`BTC ${state.btc ? "$" + Math.round(state.btc).toLocaleString("pt-BR") : "—"}`, 1000, 178);
   g.save(); g.translate(56, 250); const cw = 900, ch = 300;
-  g.strokeStyle = "rgba(127,147,176,.18)"; g.lineWidth = 2;
-  for (let y = 0; y <= ch; y += 60) { g.beginPath(); g.moveTo(0, y); g.lineTo(cw, y); g.stroke(); }
-  const off = (now / 400) % 1, pts = chartSeed.map((v, i) => [i * (cw / 119), ch * 0.55 - v * 2.2 - Math.sin(now / 900 + i * 0.3) * 6]);
-  const grad = g.createLinearGradient(0, 0, 0, ch); grad.addColorStop(0, "rgba(34,197,94,.35)"); grad.addColorStop(1, "rgba(34,197,94,0)");
-  g.beginPath(); g.moveTo(0, ch); pts.forEach(([x, y]) => g.lineTo(x, y)); g.lineTo(cw, ch); g.closePath(); g.fillStyle = grad; g.fill();
-  g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.strokeStyle = "#22c55e"; g.lineWidth = 4; g.stroke();
-  g.fillStyle = "#22c55e"; g.beginPath(); g.arc(pts[119][0], pts[119][1], 9 + off * 6, 0, 7); g.fill();
+  const pts = chartSeed.map((v, i) => [i * (cw / 119), ch * 0.55 - v * 2.2 - Math.sin(now / 900 + i * 0.3) * 6]);
+  g.fillStyle = "rgba(34,197,94,.25)"; g.beginPath(); g.moveTo(0, ch); pts.forEach(([x, y]) => g.lineTo(x, y)); g.lineTo(cw, ch); g.fill();
+  g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.strokeStyle = "#22c55e"; g.lineWidth = 6; g.stroke();
   g.restore();
-  // posições
-  g.fillStyle = "#7f93b0"; g.font = "600 32px Inter, Segoe UI, sans-serif"; g.fillText("POSIÇÕES", 1010, 280);
-  g.font = "36px Consolas, monospace";
-  if (!state.positions.length) { g.fillStyle = "#56657d"; g.fillText("nenhuma", 1010, 330); }
+  g.fillStyle = "#7f93b0"; g.font = "bold 34px monospace"; g.fillText("POSIÇÕES", 1010, 280);
+  g.font = "40px monospace";
+  if (!state.positions.length) { g.fillStyle = "#56657d"; g.fillText("nenhuma", 1010, 334); }
   state.positions.slice(0, 3).forEach((p, i) => {
     g.fillStyle = (p.r_now ?? 0) >= 0 ? "#22c55e" : "#ef4444";
-    g.fillText(`${p.symbol.replace("/USDT", "").padEnd(6)} ${String(p.r_now ?? "?").padStart(6)}R`, 1010, 330 + i * 46);
-    g.fillStyle = "#7f93b0"; g.font = "26px Consolas, monospace";
-    g.fillText(`stop ${p.stop} · alvo ${p.target}`, 1010, 360 + i * 46); g.font = "36px Consolas, monospace";
+    g.fillText(`${p.symbol.replace("/USDT", "").padEnd(5)} ${String(p.r_now ?? "?").padStart(6)}R`, 1010, 334 + i * 56);
   });
-  g.fillStyle = "#7f93b0"; g.font = "600 32px Inter, Segoe UI, sans-serif";
-  g.fillText(`SCAN${state.passed != null ? ` · ${state.passed} passaram` : ""}`, 1510, 280);
-  g.font = "34px Consolas, monospace";
+  g.fillStyle = "#7f93b0"; g.font = "bold 34px monospace"; g.fillText(`SCAN${state.passed != null ? ` · ${state.passed}` : ""}`, 1510, 280);
+  g.font = "38px monospace";
   state.candidates.slice(0, 6).forEach((cd, i) => {
-    const y = 330 + i * 50; g.fillStyle = "#e8eef8"; g.fillText(cd.symbol.replace("/USDT", "").padEnd(7), 1510, y);
-    g.fillStyle = "#1f9bd1"; g.fillRect(1680, y - 24, (cd.score || 0) * 280, 22);
+    const y = 334 + i * 52; g.fillStyle = "#e8eef8"; g.fillText(cd.symbol.replace("/USDT", "").padEnd(6), 1510, y);
+    g.fillStyle = "#1f9bd1"; g.fillRect(1680, y - 28, (cd.score || 0) * 300, 28);
   });
-  // rodapé
-  g.fillStyle = "rgba(212,160,23,.12)"; g.fillRect(0, H - 96, W, 96);
-  g.fillStyle = "#f5c451"; g.font = "600 40px Inter, Segoe UI, sans-serif"; g.fillText("▸ " + state.last, 56, H - 34);
+  g.fillStyle = "#1c2a1a"; g.fillRect(0, H - 100, W, 100);
+  g.fillStyle = "#f2c14e"; g.font = "bold 44px monospace"; g.fillText("> " + state.last, 56, H - 34);
   t.needsUpdate = true;
 }
 function drawTicker(now) {
-  const { g, c, t } = world.exchange.tick;
-  g.fillStyle = "#050a12"; g.fillRect(0, 0, c.width, c.height);
-  const items = state.candidates.length
-    ? state.candidates.slice(0, 12).map((x) => [x.symbol.replace("/USDT", ""), x.price, x.ret_1h])
+  const { g, c, t } = world.exchange.tick, W = 2048;
+  g.setTransform(c.width / W, 0, 0, c.height / 64, 0, 0);
+  g.fillStyle = "#050a12"; g.fillRect(0, 0, W, 64);
+  const items = state.candidates.length ? state.candidates.slice(0, 12).map((x) => [x.symbol.replace("/USDT", ""), x.price, x.ret_1h])
     : [["BTC", state.btc, 0], ["LET", null, 0], ["ME", null, 0], ["RICH", null, 0]];
-  g.font = "600 36px Consolas, monospace";
+  g.font = "bold 40px monospace";
   const parts = items.map(([s, p, r]) => ({ s: `${s} ${p != null ? Number(p).toLocaleString("pt-BR", { maximumSignificantDigits: 6 }) : ""} ${r ? (r > 0 ? "▲" : "▼") + Math.abs(r).toFixed(2) + "%" : ""}   `, r }));
   const total = parts.reduce((a, p) => a + g.measureText(p.s).width, 0) || 1;
   let x = -((now / 12) % total);
-  while (x < c.width) for (const p of parts) { g.fillStyle = p.r > 0 ? "#22c55e" : p.r < 0 ? "#ef4444" : "#f5c451"; g.fillText(p.s, x, 46); x += g.measureText(p.s).width; }
+  while (x < W) for (const p of parts) { g.fillStyle = p.r > 0 ? "#22c55e" : p.r < 0 ? "#ef4444" : "#f2c14e"; g.fillText(p.s, x, 48); x += g.measureText(p.s).width; }
   t.needsUpdate = true;
 }
-function drawScreen(s, t, hot) {
-  const { g, c } = s;
-  g.fillStyle = "#08101c"; g.fillRect(0, 0, c.width, c.height);
-  g.strokeStyle = "rgba(127,147,176,.15)";
-  for (let y = 24; y < c.height; y += 30) { g.beginPath(); g.moveTo(0, y); g.lineTo(c.width, y); g.stroke(); }
-  let p = c.height * 0.55;
-  for (let i = 0; i < 30; i++) {
+function drawScreen(s, t, hot) {   // coordenadas lógicas 320 de largura
+  const { g, c } = s, k = c.width / 320, H = c.height / k;
+  g.setTransform(k, 0, 0, k, 0, 0);
+  g.fillStyle = "#0b1a2e"; g.fillRect(0, 0, 320, H);
+  let p = H * 0.55;
+  for (let i = 0; i < 26; i++) {
     const nz = Math.sin(i * 0.7 + t * (hot ? 2 : 0.5) + s.seed) * 10 + Math.sin(i * 2.3 + s.seed * 3) * 6;
-    const o = p, cl = c.height * 0.55 + nz - i * 0.6 * s.trend; p = cl;
-    g.strokeStyle = g.fillStyle = cl < o ? "#22c55e" : "#ef4444";
-    const x = 10 + i * 10;
-    g.beginPath(); g.moveTo(x + 3, Math.min(o, cl) - 6); g.lineTo(x + 3, Math.max(o, cl) + 6); g.stroke();
-    g.fillRect(x, Math.min(o, cl), 6, Math.max(2, Math.abs(cl - o)));
+    const o = p, cl = H * 0.55 + nz - i * 0.6 * s.trend; p = cl;
+    g.fillStyle = cl < o ? "#22c55e" : "#ef4444";
+    g.fillRect(8 + i * 12, Math.min(o, cl), 8, Math.max(4, Math.abs(cl - o)));
   }
-  g.fillStyle = hot ? "#f5c451" : "rgba(232,238,248,.6)"; g.font = "600 16px Inter, Segoe UI, sans-serif"; g.fillText(s.title || "", 10, 18);
+  g.fillStyle = hot ? "#f2c14e" : "#c9d4e4"; g.font = "bold 22px monospace"; g.fillText(s.title || "", 8, 24);
   s.t.needsUpdate = true;
 }
 
@@ -181,14 +208,14 @@ function drawScreen(s, t, hot) {
 const fx = [];
 function flash(pos, color, big = false) {
   const l = new THREE.PointLight(color, big ? 40 : 25, 9, 1.6); l.position.copy(pos).setY(2.4); scene.add(l);
-  const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 48), new THREE.MeshBasicMaterial({ color, transparent: true, side: THREE.DoubleSide }));
-  ring.rotation.x = -Math.PI / 2; ring.position.copy(pos).setY(0.03); scene.add(ring);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.5, 24), new THREE.MeshBasicMaterial({ color, transparent: true, side: THREE.DoubleSide }));
+  ring.rotation.x = -Math.PI / 2; ring.position.copy(pos).setY(0.04); scene.add(ring);
   fx.push({ l, ring, t: 0 });
 }
-const coins = [];
-function coinShower(pos) {   // ordem enviada: moedas saltando do balcão
+const coins = [], coinM = new THREE.MeshToonMaterial({ color: 0xf2c14e, gradientMap: grad });
+function coinShower(pos) {
   for (let i = 0; i < 14; i++) {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.02, 16), new THREE.MeshStandardMaterial({ color: 0xf5c451, metalness: 1, roughness: 0.25 }));
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.03, 10), coinM);
     m.position.copy(pos).setY(1.3); scene.add(m);
     coins.push({ m, v: new THREE.Vector3((Math.random() - 0.5) * 3, 3 + Math.random() * 2, (Math.random() - 0.3) * 3), t: 0 });
   }
@@ -197,7 +224,7 @@ let wheelSpin = 0;
 const working = { mesa: 0, guarda: 0, arquivista: 0, luna: 0, sol: 0 };
 function setWorking(k, on) { if (k in working) working[k] = on ? 1 : 0; if (k === "luna" || k === "sol") cast[k].typing = !!on; }
 
-// ------------------------------------------------------------------ conversa (transcrição)
+// ------------------------------------------------------------------ histórico (painel)
 function chat(beat) {
   const div = document.createElement("div");
   if (beat.system) { div.className = "msg sys"; div.textContent = beat.text; }
@@ -219,7 +246,7 @@ function renderSummary(j) {
 }
 
 // ------------------------------------------------------------------ execução das falas
-let focus = null, lastSpeaker = null;   // quem a câmera acompanha / quem falou por último
+let focus = null;
 async function perform(b, my) {
   if (b.system) { chat(b); if (b.usage) { state.tokens = b.usage; renderBar(); } return; }
   const sp = cast[b.who];
@@ -228,14 +255,14 @@ async function perform(b, my) {
   if (b.tool && b.data !== undefined) absorb(b.tool, b.data);
   if (b.tool && !b.working && STATION_OF[b.tool]) setWorking(STATION_OF[b.tool], false);
   const to = b.to && cast[b.to];
-  everyone.forEach((p) => { p.lookAt = null; if (p !== sp && p !== lastSpeaker) p.hush(); });   // só pergunta + resposta na tela
-  lastSpeaker = sp;
+  everyone.forEach((p) => (p.lookAt = null));
   if (to) { sp.lookAt = to.worldHead(); to.lookAt = sp.worldHead(); if (sp.state === "stand") sp.faceTo(to.pos); }
   if (b.to === "todos") Object.values(cast).forEach((p) => p !== sp && (p.lookAt = sp.worldHead()));
   const dur = Math.min(9000, Math.max(2300, 1500 + b.text.length * 42)) / speed();
-  sp.say(esc(b.text).replace(/\n/g, "<br>"), { kind: b.kind === "think" ? "think" : b.mood || "", ms: dur * 1.35, to: to ? NAMES[b.to] : b.to === "todos" ? "todos" : "" });
+  if (b.kind !== "think") sp.talk(dur);
+  habboSay(sp, b.text, { kind: b.kind === "think" ? "think" : b.mood || "", to: to ? NAMES[b.to] : b.to === "todos" ? "todos" : "" });
   chat(b); focus = [sp, to];
-  state.last = `${sp.o.name}: ${b.text.split("\n")[0].slice(0, 90)}`;
+  state.last = `${sp.o.name}: ${b.text.split("\n")[0].slice(0, 80)}`;
   if (b.fx === "veto") flash(cast.sol.pos, 0xef4444, true);
   if (b.fx === "bad") flash(sp.pos, 0xef4444);
   if (b.fx === "order") { flash(SPOT.mesa, 0x22c55e, true); coinShower(V(0, -14.9)); }
@@ -255,20 +282,20 @@ async function runner() {
     lastActivity = performance.now();
   }
 }
-async function idleChatter() {   // entre ciclos, o escritório conversa
+async function idleChatter() {   // entre ciclos, o escritório conversa (não vai pro histórico)
   for (let k = Math.floor(Math.random() * IDLE.length); ; k += 2) {
     await sleep(4000);
     if (paused || idx < events.length || performance.now() - lastActivity < 20000) continue;
     for (const [who, to, text] of [IDLE[k % IDLE.length], IDLE[(k + 1) % IDLE.length]]) {
       const a = cast[who], b = cast[to]; a.lookAt = b.worldHead(); b.lookAt = a.worldHead();
-      a.say(esc(text), { ms: 3800, to: NAMES[to] }); await sleep(3200);
+      a.talk(3000); habboSay(a, text, { to: NAMES[to] }); await sleep(3200);
     }
     lastActivity = performance.now() - 5000;
   }
 }
 function reset() {
-  epoch++; idx = 0; events = []; $("chat").innerHTML = ""; $("summary").innerHTML = "";
-  everyone.forEach((p) => { p.hush(); p.lookAt = null; });
+  epoch++; idx = 0; events = []; $("chat").innerHTML = ""; $("summary").innerHTML = ""; clearBubbles();
+  everyone.forEach((p) => (p.lookAt = null));
   Object.keys(working).forEach((k) => setWorking(k, false));
   const a = cast.astra; a.path = []; if (a.onArrive) { const r = a.onArrive; a.onArrive = null; r(); } a.sit(world.astraSeat, 0);
   Object.assign(state, { regime: "—", btc: null, equity: null, free: null, positions: [], candidates: [], passed: null, last: "…", tokens: null });
@@ -281,6 +308,7 @@ async function load(id) {
   const when = (c.started_at || "").replace("T", " ").slice(0, 16);
   $("meta").innerHTML = `<b>${esc(c.id.replace(/^(cycle|weekly)-/, ""))}</b> · ${esc(c.status)} · ${esc(when)} UTC` +
     (c.running ? ` · <span class="live-tag">rodando agora</span>` : "");
+  $("room-sub").textContent = c.running ? "ciclo rodando agora" : `ciclo ${c.id.replace(/^(cycle|weekly)-/, "")}`;
   pushEvents(c.events);
   if (!c.events.length && c.summary) renderSummary(c.summary);
 }
@@ -312,19 +340,19 @@ $("play").onclick = () => { paused = !paused; $("play").textContent = paused ? "
 $("restart").onclick = () => current && load(current.id);
 $("live").onclick = () => { live = !live; $("live").classList.toggle("on", live); if (live) livePoll(); };
 $("follow").onclick = () => { follow = !follow; $("follow").classList.toggle("on", follow); };
+$("pixel").onclick = () => { pixel = { 2: 3, 3: 1, 1: 2 }[pixel]; pixelPass.setPixelSize(pixel); $("pixel").textContent = `▦ pixel ${pixel}×`; };
+$("center").onclick = () => { const d = TARGET.clone().sub(controls.target); controls.target.add(d); camera.position.add(d); camera.zoom = 1; camera.updateProjectionMatrix(); };
 
 // ------------------------------------------------------------------ loop
 const clock = new THREE.Clock();
-let lastScreens = -1, lastWall = -1, lastClock = -1, slowFor = 0, shadowsOn = true;
+let lastScreens = -1, lastWall = -1, lastClock = -1;
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.1), t = clock.elapsedTime, sp = speed();
   everyone.forEach((p) => p.update(dt, t, sp));
-  // luzes das estações
   const L = [[world.exchange.light, working.mesa, 18], [world.vault.lamp, working.guarda, 14], [world.archive.lamp, working.arquivista, 14],
     [world.luna.lamp, working.luna, 12], [world.sol.lamp, working.sol, 12]];
   for (const [l, on, max] of L) l.intensity += ((on ? max : 0) - l.intensity) * 0.08;
   if (wheelSpin > 0) { world.vault.wheel.rotation.z += dt * 5 * sp; wheelSpin -= dt * sp; }
-  // telas (upload de textura é caro: taxas baixas bastam)
   if (t - lastScreens > 0.25) {
     lastScreens = t;
     world.luna.desk.screens.forEach((s) => drawScreen(s, t, working.luna));
@@ -335,7 +363,6 @@ function frame() {
   }
   if (t - lastWall > 0.1) { lastWall = t; drawWall(Date.now()); drawTicker(Date.now()); }
   if (t - lastClock > 1) { lastClock = t; world.clock(Date.now()); }
-  // efeitos
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i]; f.t += dt * sp;
     f.l.intensity *= 0.94; const s = 1 + f.t * 7; f.ring.scale.set(s, s, s); f.ring.material.opacity = Math.max(0, 1 - f.t / 1.4);
@@ -343,24 +370,20 @@ function frame() {
   }
   for (let i = coins.length - 1; i >= 0; i--) {
     const c = coins[i]; c.t += dt; c.v.y -= 9.8 * dt; c.m.position.addScaledVector(c.v, dt); c.m.rotation.x += dt * 9;
-    if (c.m.position.y < 0.02) { c.m.position.y = 0.02; c.v.set(c.v.x * 0.5, Math.abs(c.v.y) * 0.3, c.v.z * 0.5); }
+    if (c.m.position.y < 0.03) { c.m.position.y = 0.03; c.v.set(c.v.x * 0.5, Math.abs(c.v.y) * 0.3, c.v.z * 0.5); }
     if (c.t > 2.5) { scene.remove(c.m); coins.splice(i, 1); }
   }
-  // câmera acompanhando a conversa
-  if (follow && focus) {
-    const [a, b] = focus, mid = a.worldHead(); if (b) mid.lerp(b.worldHead(), 0.5); mid.y = 1.2;
-    controls.target.lerp(mid, 0.04);
+  if (follow && focus) {   // câmera isométrica: move alvo e câmera juntos (o ângulo nunca muda)
+    const [a, b] = focus, mid = a.worldHead(); if (b) mid.lerp(b.worldHead(), 0.5); mid.y = 0.8;
+    const d = mid.sub(controls.target).multiplyScalar(0.05); controls.target.add(d); camera.position.add(d);
   }
   controls.update();
-  renderer.render(scene, camera);
+  composer.render();
   labels.render(scene, camera);
-  // GPU fraca: se ficar abaixo de ~22 fps por 3 s, desliga sombras
-  if (shadowsOn && dt > 0.045) { slowFor += dt; if (slowFor > 3) { shadowsOn = false; renderer.shadowMap.enabled = false; scene.traverse((o) => o.material && (o.material.needsUpdate = true)); } } else slowFor = 0;
 }
 function tick() { frame(); requestAnimationFrame(tick); }
 addEventListener("resize", () => {
-  fitView();
-  renderer.setSize(innerWidth, innerHeight); labels.setSize(innerWidth, innerHeight);
+  fitView(); renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); labels.setSize(innerWidth, innerHeight);
 });
 
 (async () => {

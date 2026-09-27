@@ -14,6 +14,7 @@ export const STATION_OF = {
 const n = (v, d = 2) => (v == null || v === "" || Number.isNaN(Number(v)) ? String(v ?? "?")
   : Number(v).toLocaleString("pt-BR", { maximumFractionDigits: d }));
 const usd = (v) => "US$ " + n(v, 2);
+const px = (v) => (v == null || Number.isNaN(Number(v)) ? "?" : Number(v).toLocaleString("pt-BR", { maximumSignificantDigits: 5 }));   // preço: 122,24 · 0,004307
 const sym = (s) => String(s || "").replace("/USDT", "");
 const cut = (s, k = 150) => { s = String(s || "").replace(/\s+/g, " ").trim(); return s.length > k ? s.slice(0, k - 1) + "…" : s; };
 const pick = (arr, i) => arr[Math.abs(i) % arr.length];
@@ -35,7 +36,7 @@ function ask(tool, a, i) {
     case "read_charts": { const s = (a.symbols || []).map(sym); return `Luna, dá uma olhada no gráfico de ${list(s)} pra mim?`; }
     case "get_candles": return `Deixa eu ver o ${sym(a.symbol)} no ${a.timeframe || "1h"}…`;
     case "place_entry":
-      return `Sol, quero comprar ${sym(a.symbol)} (${a.setup}). Stop ${n(a.stop_price, 6)}, alvo ${n(a.target_price, 6)}. ` +
+      return `Sol, quero comprar ${sym(a.symbol)} (${a.setup}). Stop ${px(a.stop_price)}, alvo ${px(a.target_price)}. ` +
         `${cut(a.reason, 120)} Me convence do contrário.`;
     case "write_journal": {
       const what = { skip: `pulei ${sym(a.symbol)}`, entry: `entrei em ${sym(a.symbol)}`, manage: `gestão de ${sym(a.symbol)}`,
@@ -43,7 +44,7 @@ function ask(tool, a, i) {
       const why = a.kind === "postmortem" ? `Lição: ${a.lesson}` : a.thesis;
       return `Anota aí: ${what}. ${cut(why, 140)}`;
     }
-    case "move_stop": return `Sobe o stop de ${sym(a.symbol)} pra ${n(a.new_stop, 6)}.`;
+    case "move_stop": return `Sobe o stop de ${sym(a.symbol)} pra ${px(a.new_stop)}.`;
     case "take_partial": return `Realiza ${Math.round((a.fraction || 0) * 100)}% de ${sym(a.symbol)}. ${cut(a.reason, 100)}`;
     case "close_position": return `Zera ${sym(a.symbol)}. ${cut(a.reason, 100)}`;
     case "write_proposal": return `Anota uma proposta: "${cut(a.title, 70)}".`;
@@ -96,16 +97,16 @@ function answer(tool, d, a, i) {
     }
     case "read_charts": {
       const lines = (d.pairs || []).map((p) =>
-        `${sym(p.symbol)}: ${p.trend_4h} no 4h, ${p.trend_1h} no 1h, ${p.pattern}. Suporte ${n(p.support, 6)}, resistência ${n(p.resistance, 6)}; a ideia morre abaixo de ${n(p.invalidation, 6)}.`);
+        `${sym(p.symbol)}: ${p.trend_4h} no 4h, ${p.trend_1h} no 1h, ${p.pattern}. Suporte ${px(p.support)}, resistência ${px(p.resistance)}; a ideia morre abaixo de ${px(p.invalidation)}.`);
       return { text: lines.join("\n") || "Não consegui ler nada." };
     }
     case "get_candles": {
       const x = d.indicators || {};
-      return { text: `RSI ${n(x.rsi14, 1)}, EMA20 ${n(x.ema20, 6)} vs EMA50 ${n(x.ema50, 6)}, ATR ${n(x.atr14_pct, 2)}%.`, think: true };
+      return { text: `RSI ${n(x.rsi14, 1)}, EMA20 ${px(x.ema20)} vs EMA50 ${px(x.ema50)}, ATR ${n(x.atr14_pct, 2)}%.`, think: true };
     }
     case "write_journal": return { text: pick(["Anotado.", "Registrado no diário.", "Tá no livro."], i) + (d.journal_id ? ` (#${d.journal_id})` : "") };
     case "write_proposal": return { text: `Proposta guardada em ${d.file}.` };
-    case "move_stop": return { text: `Feito. Stop de ${sym(a.symbol)} agora em ${n(a.new_stop, 6)}.`, mood: "good" };
+    case "move_stop": return { text: `Feito. Stop de ${sym(a.symbol)} agora em ${px(a.new_stop)}.`, mood: "good" };
     case "take_partial": return { text: `Parcial executada em ${sym(a.symbol)}.`, mood: "good" };
     case "close_position": return { text: `Posição em ${sym(a.symbol)} zerada.`, mood: "good" };
     default: return { text: cut(JSON.stringify(d), 160) };
