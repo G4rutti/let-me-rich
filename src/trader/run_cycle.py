@@ -153,15 +153,16 @@ def run_claude(kind: str, cycle_id: str, cc: dict, model: str | None) -> tuple[d
         cmd, stdin = build_codex_cmd(kind, cycle_id, cc, model, schema, last), None
     else:
         cmd = build_cmd(kind, cc, model)
+    log = logs / f"{cycle_id}.json"   # stdout vai direto pro arquivo: o observatório acompanha ao vivo
     try:
-        p = subprocess.run(cmd, cwd=ROOT, env=env, stdin=stdin, input=codex_prompt(kind) if codex else None,
-                           capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           timeout=cc["timeout_min"] * 60)
-        out, err = p.stdout, p.stderr
-    except subprocess.TimeoutExpired as e:
-        out, err = (e.stdout or ""), f"TIMEOUT após {cc['timeout_min']} min"
-        out = out.decode() if isinstance(out, bytes) else out
-    (logs / f"{cycle_id}.json").write_text(out or "", encoding="utf-8")
+        with log.open("w", encoding="utf-8") as f:
+            p = subprocess.run(cmd, cwd=ROOT, env=env, stdin=stdin, input=codex_prompt(kind) if codex else None,
+                               stdout=f, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
+                               timeout=cc["timeout_min"] * 60)
+        err = p.stderr
+    except subprocess.TimeoutExpired:
+        err = f"TIMEOUT após {cc['timeout_min']} min"
+    out = log.read_text(encoding="utf-8")
     if err:
         (logs / f"{cycle_id}.err").write_text(err, encoding="utf-8")
     if codex:
