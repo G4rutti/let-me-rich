@@ -239,18 +239,85 @@ function bull(scene, x, z) {   // o touro de Wall Street
     }
   }
 }
+// canto da resenha: sinuca, café e sofá (frente-esquerda). Os agentes vêm pra cá quando não há ciclo rodando.
 function lounge(scene) {
-  const g = new THREE.Group(); g.position.set(-13.5, 0, 4.8); scene.add(g);
+  const V = (x, z) => new THREE.Vector3(x, 0, z);
+  // sofá virado para a mesa de sinuca
+  const g = new THREE.Group(); g.position.set(-11.5, 0, 7.3); g.rotation.y = Math.PI; scene.add(g);
   box(3.4, 0.42, 1.0, M.fabric, 0, 0.3, 0, g); box(3.4, 0.7, 0.25, M.fabric, 0, 0.7, -0.45, g);
   box(0.25, 0.6, 1.0, M.fabric, -1.6, 0.5, 0, g); box(0.25, 0.6, 1.0, M.fabric, 1.6, 0.5, 0, g);
-  const table = new THREE.Group(); table.position.set(0, 0, 1.4); g.add(table);
-  cyl(0.7, 0.7, 0.08, M.white, 0, 0.42, 0, table, 20); cyl(0.05, 0.05, 0.4, M.gold, 0, 0.2, 0, table, 6);
-  plant(scene, -16.8, 6.8, 1.2); plant(scene, -10.8, 6.9, 0.9);
-  const k = new THREE.Group(); k.position.set(-16.9, 0, -9.4); k.rotation.y = Math.PI / 2; scene.add(k);   // café
+  plant(scene, -16.8, 7.0, 1.2); plant(scene, -8.6, 7.3, 0.9);
+
+  // mesa de sinuca
+  const cx = -11.5, cz = 4.4, HX = 1.25, HZ = 0.62, R = 0.06, TOP = 0.86;
+  const felt = new THREE.MeshStandardMaterial({ color: 0x1f8a4c });
+  const t = new THREE.Group(); t.position.set(cx, 0, cz); scene.add(t);
+  for (const [x, z] of [[-1.25, -0.6], [1.25, -0.6], [-1.25, 0.6], [1.25, 0.6]]) box(0.18, 0.7, 0.18, M.walnut, x, 0.35, z, t);
+  box(2.9, 0.16, 1.6, M.walnut, 0, 0.74, 0, t);
+  box(2.5, 0.04, 1.24, felt, 0, 0.84, 0, t);
+  box(2.9, 0.1, 0.18, M.walnut, 0, 0.87, -0.71, t); box(2.9, 0.1, 0.18, M.walnut, 0, 0.87, 0.71, t);   // tabelas
+  box(0.18, 0.1, 1.6, M.walnut, -1.36, 0.87, 0, t); box(0.18, 0.1, 1.6, M.walnut, 1.36, 0.87, 0, t);
+  for (const [x, z] of [[-1.25, -0.62], [0, -0.64], [1.25, -0.62], [-1.25, 0.62], [0, 0.64], [1.25, 0.62]]) cyl(0.08, 0.08, 0.03, M.black, x, 0.87, z, t, 10);
+  const lampM = new THREE.MeshStandardMaterial({ color: 0x1f8a4c, emissive: 0xfff1b0, emissiveIntensity: 0.2 });
+  cyl(0.02, 0.02, 1.6, M.darkSteel, 0, 3.9, 0, t, 6); cyl(0.35, 0.55, 0.3, lampM, 0, 3.05, 0, t, 12);        // luminária
+  const colors = [0xffffff, 0xf2c14e, 0x2f6fb3, 0xd8323c, 0x8e44ad, 0xe67e22, 0x3fa34d, 0x111111];
+  const rack = [[-0.7, 0], [0.45, 0], [0.56, -0.065], [0.56, 0.065], [0.67, -0.13], [0.67, 0], [0.67, 0.13], [0.78, 0.065]];
+  const balls = rack.map(([x, z], i) => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(R, 10, 8), new THREE.MeshStandardMaterial({ color: colors[i] }));
+    m.position.set(cx + x, TOP + R, cz + z); scene.add(m); return { m, v: new THREE.Vector2() };
+  });
+  const pool = {
+    center: V(cx, cz),
+    shoot() {   // tacada: bola branca na direção de uma bola qualquer
+      const cue = balls[0], other = balls[1 + Math.floor(Math.random() * (balls.length - 1))];
+      const d = new THREE.Vector2(other.m.position.x - cue.m.position.x, other.m.position.z - cue.m.position.z);
+      if (d.lengthSq() < 1e-4) d.set(1, 0.3);
+      cue.v.copy(d.normalize().rotateAround(new THREE.Vector2(), (Math.random() - 0.5) * 0.25).multiplyScalar(2.2 + Math.random() * 1.4));
+    },
+    update(dt) {
+      for (const b of balls) {
+        b.v.multiplyScalar(Math.exp(-0.9 * dt)); if (b.v.lengthSq() < 4e-4) b.v.set(0, 0);
+        b.m.position.x += b.v.x * dt; b.m.position.z += b.v.y * dt;
+        const lx = b.m.position.x - cx, lz = b.m.position.z - cz;
+        if (Math.abs(lx) > HX - R) { b.m.position.x = cx + Math.sign(lx) * (HX - R); b.v.x *= -0.85; }
+        if (Math.abs(lz) > HZ - R) { b.m.position.z = cz + Math.sign(lz) * (HZ - R); b.v.y *= -0.85; }
+        b.m.rotation.x += b.v.y * dt / R; b.m.rotation.z -= b.v.x * dt / R;
+      }
+      for (let i = 0; i < balls.length; i++) for (let j = i + 1; j < balls.length; j++) {   // choque elástico, massas iguais
+        const a = balls[i], b = balls[j], dx = b.m.position.x - a.m.position.x, dz = b.m.position.z - a.m.position.z, dist = Math.hypot(dx, dz);
+        if (dist >= 2 * R || dist === 0) continue;
+        const nx = dx / dist, nz = dz / dist, push = (2 * R - dist) / 2;
+        a.m.position.x -= nx * push; a.m.position.z -= nz * push; b.m.position.x += nx * push; b.m.position.z += nz * push;
+        const rel = (a.v.x - b.v.x) * nx + (a.v.y - b.v.y) * nz; if (rel <= 0) continue;
+        a.v.x -= rel * nx; a.v.y -= rel * nz; b.v.x += rel * nx; b.v.y += rel * nz;
+      }
+    },
+  };
+
+  // balcão do café com máquina de espresso, encostado na parede esquerda
+  const k = new THREE.Group(); k.position.set(-17.0, 0, 0.8); k.rotation.y = Math.PI / 2; scene.add(k);
   box(2.4, 0.95, 0.7, M.walnut, 0, 0.47, 0, k); box(2.5, 0.08, 0.75, M.marble, 0, 0.99, 0, k);
-  box(0.45, 0.55, 0.4, M.red, -0.6, 1.3, 0, k); box(0.35, 0.45, 0.35, M.steel, 0.3, 1.25, 0, k);
-  cyl(0.18, 0.18, 1.0, M.white, -16.9, 0.5, -12.2, scene, 12);                              // bebedouro
+  const mach = new THREE.Group(); mach.position.set(-0.3, 1.03, -0.05); k.add(mach);
+  box(0.75, 0.6, 0.5, M.red, 0, 0.3, 0, mach); box(0.8, 0.08, 0.55, M.steel, 0, 0.64, 0, mach);          // corpo e tampo
+  box(0.55, 0.12, 0.12, M.steel, 0, 0.42, 0.3, mach);                                                   // grupo
+  for (const x of [-0.14, 0.14]) { cyl(0.03, 0.03, 0.12, M.black, x, 0.3, 0.32, mach, 6); cyl(0.05, 0.045, 0.09, M.white, x, 0.05, 0.3, mach, 10); }
+  box(0.5, 0.04, 0.3, M.darkSteel, 0, 0.02, 0.3, mach);                                                 // bandeja
+  cyl(0.02, 0.02, 0.2, M.steel, 0.36, 0.45, 0.2, mach, 6);                                              // vaporizador
+  box(0.3, 0.45, 0.3, M.black, 0.62, 1.26, 0, k);                                                      // moedor
+  for (let i = 0; i < 4; i++) cyl(0.05, 0.045, 0.09, M.white, 0.75 + (i % 2) * 0.13, 1.08, 0.2 + Math.floor(i / 2) * 0.12, k, 10);
+  const machineAt = V(-17.0, 1.1).setY(1.75);   // bico da máquina (balcão girado 90°)
+  cyl(0.18, 0.18, 1.0, M.white, -16.9, 0.5, -12.2, scene, 12);                                          // bebedouro
   cyl(0.16, 0.16, 0.5, new THREE.MeshStandardMaterial({ color: 0x8fd3ff, transparent: true, opacity: 0.8 }), -16.9, 1.25, -12.2, scene, 12);
+
+  // onde cada um fica na resenha (via = desvio para não atravessar a mesa)
+  const slots = {
+    pool1: { pos: V(-11.5, 2.75), face: V(cx, cz), activity: "pool" },
+    pool2: { pos: V(-13.8, 4.4), face: V(cx, cz), activity: "pool", via: [V(-13.8, 2.6)] },
+    coffee: { pos: V(-15.75, 1.0), face: V(-17, 1.1), activity: "coffee" },
+    sofa1: { seat: V(-12.3, 7.2), yaw: Math.PI, via: [V(-9.0, 6.3)] },
+    sofa2: { seat: V(-10.7, 7.2), yaw: Math.PI, via: [V(-9.0, 6.3)] },
+  };
+  return { pool, slots, machineAt };
 }
 function wallClock(scene) {
   const face = screenCanvas(64, 64);
@@ -275,7 +342,7 @@ export function buildWorld(scene) {
   mats(); backdrop(scene); room(scene);
   const exchange = exchangeZone(scene), vault = vaultZone(scene), archive = archiveZone(scene);
   const luna = office(scene, -1), sol = office(scene, 1);
-  bull(scene, 13.6, 5.6); lounge(scene);
+  bull(scene, 13.6, 5.6); const lounge_ = lounge(scene);
   plant(scene, 8.6, -16.4, 1.2); plant(scene, -9.2, -16.5, 1.1); plant(scene, 17, 6.9, 1.1); plant(scene, 17, -11.5, 1.1);
   const astraDesk = desk(scene, 0, -1.1, Math.PI, { w: 3, mons: 3, title: ["CARTEIRA", "SCAN", "ORDENS"] });
   chair(scene, 0, -2.05, 0);
@@ -285,5 +352,5 @@ export function buildWorld(scene) {
     chair(scene, x, z + 0.95, Math.PI);
     traders.push({ desk: d, seat: new THREE.Vector3(x, 0, z + 0.95) });
   }
-  return { exchange, vault, archive, luna, sol, astraDesk, traders, astraSeat: new THREE.Vector3(0, 0, -2.05), clock: wallClock(scene) };
+  return { exchange, vault, archive, luna, sol, astraDesk, traders, lounge: lounge_, astraSeat: new THREE.Vector3(0, 0, -2.05), clock: wallClock(scene) };
 }

@@ -6,7 +6,7 @@ import { RenderPixelatedPass } from "three/addons/postprocessing/RenderPixelated
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { buildWorld } from "./world.js";
 import { Person } from "./people.js";
-import { beatsFor, IDLE, STATION_OF } from "./story.js";
+import { beatsFor, IDLE, RESENHA, STATION_OF } from "./story.js";
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -100,6 +100,47 @@ async function astraGo(key) {
   pts.push(target);
   await a.walk(pts);
   a.faceTo(cast[key].pos);
+}
+
+// ------------------------------------------------------------------ resenha: sem ciclo rodando, os agentes vão pra sinuca/café
+const HOME = { astra: [world.astraSeat, 0], luna: [world.luna.seat, world.luna.faceAngle], sol: [world.sol.seat, world.sol.faceAngle] };
+const LOUNGE_IN = {   // corredores até o canto da resenha, desviando das mesas
+  astra: [DESK_EXIT, V(2.2, -2.6), V(2.2, 2.1), V(-8.2, 2.1)],
+  luna: [V(-13.4, -5), V(-10.4, -5), V(-8.6, 0.8), V(-8.2, 2.1)],
+  sol: [V(13.4, -5), V(10.4, -5), V(8.4, 2.1), V(-8.2, 2.1)],
+};
+let resenha = null;   // { assign: { astra: "pool1", ... } }
+const routeOf = (who, key) => { const s = world.lounge.slots[key]; return [...LOUNGE_IN[who], ...(s.via || []), s.pos || s.seat]; };
+async function goResenha() {
+  const third = Math.random() < 0.5 ? "coffee" : "sofa1";
+  const order = ["astra", "luna", "sol"].sort(() => Math.random() - 0.5);
+  const r = resenha = { assign: { [order[0]]: "pool1", [order[1]]: "pool2", [order[2]]: third } };
+  await Promise.all(Object.entries(r.assign).map(async ([who, key]) => {
+    const p = cast[who], s = world.lounge.slots[key];
+    if (p.state === "sit") { p.state = "stand"; await sleep(300); }
+    await p.walk(routeOf(who, key));
+    if (resenha !== r) return;
+    if (s.seat) p.sit(s.seat, s.yaw); else { p.faceTo(s.face); p.setActivity(s.activity); }
+  }));
+}
+async function backToWork() {   // chegou evento: todo mundo volta andando pro seu lugar
+  const r = resenha; resenha = null; if (!r) return;
+  await Promise.all(Object.entries(r.assign).map(async ([who, key]) => {
+    const p = cast[who], route = routeOf(who, key);
+    p.setActivity(null); if (p.state === "sit") { p.state = "stand"; await sleep(250); }
+    let k = 0; route.forEach((pt, i) => { if (pt.distanceTo(p.pos) < route[k].distanceTo(p.pos)) k = i; });
+    await p.walk([...route.slice(0, k + 1).reverse(), HOME[who][0]]);
+    p.sit(...HOME[who]);
+  }));
+}
+async function poolLoop() {   // tacadas alternadas
+  for (let turn = 0; ; turn++) {
+    await sleep(5500 / speed());
+    if (!resenha) continue;
+    const players = Object.values(cast).filter((p) => p.activity === "pool"); if (!players.length) continue;
+    const p = players[turn % players.length]; p.faceTo(world.lounge.pool.center); p.shoot();
+    await sleep(1000 / speed()); world.lounge.pool.shoot();
+  }
 }
 
 // ------------------------------------------------------------------ chat estilo Habbo: nasce na altura de quem fala e sobe
@@ -276,7 +317,11 @@ let current = null, events = [], idx = 0, paused = false, live = false, epoch = 
 async function runner() {
   for (;;) {
     const my = epoch;
-    if (paused || idx >= events.length) { await sleep(200); continue; }
+    if (paused || idx >= events.length) {
+      if (!paused && !resenha && !current?.running && performance.now() - lastActivity > 12000) goResenha();   // à toa = sem ciclo rodando
+      await sleep(200); continue;
+    }
+    if (resenha) { await backToWork(); if (my !== epoch) continue; }
     const i = idx++;
     for (const b of beatsFor(events[i], i)) { if (my !== epoch) break; await perform(b, my); }
     lastActivity = performance.now();
@@ -286,25 +331,32 @@ async function idleChatter() {   // entre ciclos, o escritório conversa (não v
   for (let k = Math.floor(Math.random() * IDLE.length); ; k += 2) {
     await sleep(4000);
     if (paused || idx < events.length || performance.now() - lastActivity < 20000) continue;
-    for (const [who, to, text] of [IDLE[k % IDLE.length], IDLE[(k + 1) % IDLE.length]]) {
+    const lines = resenha ? RESENHA : IDLE;
+    for (const [who, to, text] of [lines[k % lines.length], lines[(k + 1) % lines.length]]) {
       const a = cast[who], b = cast[to]; a.lookAt = b.worldHead(); b.lookAt = a.worldHead();
       a.talk(3000); habboSay(a, text, { to: NAMES[to] }); await sleep(3200);
     }
     lastActivity = performance.now() - 5000;
   }
 }
-function reset() {
+function reset(soft = false) {   // soft: ciclo novo ao vivo — quem está na resenha volta andando
   epoch++; idx = 0; events = []; $("chat").innerHTML = ""; $("summary").innerHTML = ""; clearBubbles();
   everyone.forEach((p) => (p.lookAt = null));
   Object.keys(working).forEach((k) => setWorking(k, false));
-  const a = cast.astra; a.path = []; if (a.onArrive) { const r = a.onArrive; a.onArrive = null; r(); } a.sit(world.astraSeat, 0);
+  if (!soft) resenha = null;
+  for (const [who, [seat, yaw]] of Object.entries(soft ? {} : HOME)) {
+    const p = cast[who]; p.path = []; p.setActivity(null);
+    if (p.onArrive) { const r = p.onArrive; p.onArrive = null; r(); }
+    p.sit(seat, yaw);
+  }
+  lastActivity = performance.now();
   Object.assign(state, { regime: "—", btc: null, equity: null, free: null, positions: [], candidates: [], passed: null, last: "…", tokens: null });
   renderBar();
 }
 function pushEvents(list) { for (let i = events.length; i < list.length; i++) events.push(list[i]); }
-async function load(id) {
+async function load(id, soft = false) {
   const c = await (await fetch("/api/cycle/" + id)).json();
-  reset(); current = c;
+  reset(soft); current = c;
   const when = (c.started_at || "").replace("T", " ").slice(0, 16);
   $("meta").innerHTML = `<b>${esc(c.id.replace(/^(cycle|weekly)-/, ""))}</b> · ${esc(c.status)} · ${esc(when)} UTC` +
     (c.running ? ` · <span class="live-tag">rodando agora</span>` : "");
@@ -324,7 +376,7 @@ async function livePoll() {
   try {
     const list = await refreshList();
     const newest = list[0];
-    if (newest && (!current || newest.id !== current.id)) { await refreshList(newest.id); await load(newest.id); }
+    if (newest && (!current || newest.id !== current.id)) { await refreshList(newest.id); await load(newest.id, !!current); }
     else if (current && (current.running || current.status === "?")) {
       const c = await (await fetch("/api/cycle/" + current.id)).json();
       current.running = c.running; current.status = c.status; pushEvents(c.events);
@@ -345,13 +397,25 @@ $("center").onclick = () => { const d = TARGET.clone().sub(controls.target); con
 
 // ------------------------------------------------------------------ loop
 const clock = new THREE.Clock();
-let lastScreens = -1, lastWall = -1, lastClock = -1;
+let lastScreens = -1, lastWall = -1, lastClock = -1, lastSteam = 0;
+const puffs = [];
+function steam() {   // fumacinha saindo da máquina de café
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 4), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 }));
+  m.position.copy(world.lounge.machineAt).add(new THREE.Vector3((Math.random() - 0.5) * 0.1, 0, (Math.random() - 0.5) * 0.1));
+  scene.add(m); puffs.push({ m, t: 0 });
+}
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.1), t = clock.elapsedTime, sp = speed();
   everyone.forEach((p) => p.update(dt, t, sp));
   const L = [[world.exchange.light, working.mesa, 18], [world.vault.lamp, working.guarda, 14], [world.archive.lamp, working.arquivista, 14],
     [world.luna.lamp, working.luna, 12], [world.sol.lamp, working.sol, 12]];
   for (const [l, on, max] of L) l.intensity += ((on ? max : 0) - l.intensity) * 0.08;
+  world.lounge.pool.update(dt * sp);
+  if (Object.values(cast).some((p) => p.activity === "coffee") && t - lastSteam > 0.7) { lastSteam = t; steam(); }
+  for (let i = puffs.length - 1; i >= 0; i--) {
+    const f = puffs[i]; f.t += dt; f.m.position.y += dt * 0.5; f.m.scale.setScalar(1 + f.t); f.m.material.opacity = Math.max(0, 0.7 - f.t * 0.35);
+    if (f.t > 2) { scene.remove(f.m); puffs.splice(i, 1); }
+  }
   if (wheelSpin > 0) { world.vault.wheel.rotation.z += dt * 5 * sp; wheelSpin -= dt * sp; }
   if (t - lastScreens > 0.25) {
     lastScreens = t;
@@ -393,5 +457,5 @@ addEventListener("resize", () => {
   const list = await refreshList();
   if (list.length) await load(list[0].id);
   if (list[0]?.status === "running") $("live").click();
-  renderBar(); tick(); runner(); idleChatter();
+  renderBar(); tick(); runner(); idleChatter(); poolLoop();
 })();

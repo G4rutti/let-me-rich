@@ -187,3 +187,14 @@ export const IDLE = [
   ["guarda", "sol", "Eu sou chato por contrato."], ["luna", "sol", "Esse pavio no 4h tá me incomodando."],
   ["sol", "luna", "Tudo te incomoda. Por isso você é boa."],
 ];
+
+// resenha na sinuca/café entre ciclos: só zoeira, nenhum dado de mercado
+export const RESENHA = [
+  ["astra", "sol", "Sua vez, Sol. Bola 3 no canto."], ["sol", "astra", "Aposto que você erra. Força 4 de 5."],
+  ["luna", "astra", "Esse café tá mais forte que o volume de hoje."], ["astra", "luna", "Pelo menos café não toma stop."],
+  ["sol", "luna", "Tacada limpa. Diferente daquele rompimento sem volume."], ["luna", "sol", "Mira no suporte, não na resistência."],
+  ["astra", "sol", "Se eu encaçapar essa, você não veta minha próxima entrada."], ["sol", "astra", "Veto do mesmo jeito."],
+  ["luna", "sol", "Mais um café? A máquina tá liberada."], ["sol", "luna", "Só um. Depois eu volto a ser chato."],
+  ["astra", "luna", "Já já tem ciclo. Quem perder paga o café."], ["luna", "astra", "Fechado. E o perdedor escreve o post-mortem."],
+  ["sol", "astra", "Tabela na lateral? Isso é overtrading de sinuca."], ["astra", "sol", "Isso é gestão de risco criativa."],
+];

@@ -121,7 +121,7 @@ export class Person {
     blob.rotation.x = -Math.PI / 2; blob.position.y = 0.02; blob.scale.set(1.25, 0.9, 1); this.root.add(blob);   // sombra redonda
 
     this.state = "stand"; this.path = []; this.onArrive = null;
-    this.talkUntil = 0; this.typing = false; this.lookAt = null; this.phase = Math.random() * 10;
+    this.talkUntil = 0; this.strokeUntil = 0; this.activity = null; this.typing = false; this.lookAt = null; this.phase = Math.random() * 10;
     this.blinkAt = 1 + Math.random() * 4; this.seed = Math.random() * 100; this.speedMul = 1;
     this.root.traverse((c) => { if (c.isMesh) c.receiveShadow = false; });
   }
@@ -134,6 +134,21 @@ export class Person {
   }
   faceTo(v) { const d = new THREE.Vector3().subVectors(v, this.pos); this.targetYaw = Math.atan2(d.x, d.z); }
   talk(ms) { this.talkUntil = performance.now() + Math.min(ms, 4000); }   // boca + gesto; o texto vai pro chat
+  // resenha: "pool" (taco na mão) ou "coffee" (caneca); null = trabalhando
+  setActivity(kind) {
+    this.activity = kind;
+    if (kind === "pool" && !this.cue) {
+      this.cue = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.028, 1.45, 6), new THREE.MeshToonMaterial({ color: 0xc8914a }));
+      this.root.add(this.cue);
+    }
+    if (kind === "coffee" && !this.mug) {
+      this.mug = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.12, 10), new THREE.MeshToonMaterial({ color: 0xffffff }));
+      this.mug.position.set(0, -0.36, 0.07); this.arms[1].el.add(this.mug);
+    }
+    if (this.cue) this.cue.visible = kind === "pool";
+    if (this.mug) this.mug.visible = kind === "coffee";
+  }
+  shoot() { this.strokeUntil = performance.now() + 1300; }   // tacada: inclina e empurra o taco
   worldHead() { return this.head.getWorldPosition(new THREE.Vector3()); }
 
   update(dt, t, speed) {
@@ -168,6 +183,17 @@ export class Person {
       const br = Math.sin(t * 1.6 + this.seed);
       shZ = [-0.08 - br * 0.01, 0.08 + br * 0.01];
       pelvisY = 0.95 + br * 0.003;
+      if (this.activity === "pool") {
+        if (performance.now() < this.strokeUntil) {   // debruçado na mesa, taco indo e voltando
+          chestX = 0.55; shX = [-1.05, -1.2]; elX = [-0.25, -0.1]; shZ = [0.15, -0.1];
+          this.cue.position.set(0.06, 1.0, 0.45 + Math.sin(t * 13) * 0.1); this.cue.rotation.set(Math.PI / 2 + 0.12, 0, 0);
+        } else {                                       // em pé, taco apoiado do lado
+          shX[1] = -0.15; elX[1] = -0.5; this.cue.position.set(0.4, 0.9, 0.12); this.cue.rotation.set(0.05, 0, 0.06);
+        }
+      } else if (this.activity === "coffee") {         // gole de vez em quando
+        const sip = ((t + this.seed) % 6) < 1.4;
+        shX[1] = sip ? -0.95 : -0.35; elX[1] = sip ? -1.95 : -1.25; shZ[1] = sip ? -0.25 : 0; if (sip) headX -= 0.12;
+      }
     }
     // falando: boca, cabeça e mão direita
     const talking = performance.now() < this.talkUntil;
@@ -175,7 +201,7 @@ export class Person {
     this.mouth.scale.y = talking ? 1 + Math.abs(Math.sin(t * 17 + this.seed)) * 3.2 : 1;
     if (talking) {
       headX += Math.sin(t * 4.5) * 0.06;
-      if (this.state !== "walk") { shX[1] = (this.state === "sit" ? -0.9 : -0.55) + Math.sin(t * 3.1) * 0.18; elX[1] = -1.1 + Math.sin(t * 2.3) * 0.2; shZ[1] = 0.25; }
+      if (this.state !== "walk" && !this.activity) { shX[1] = (this.state === "sit" ? -0.9 : -0.55) + Math.sin(t * 3.1) * 0.18; elX[1] = -1.1 + Math.sin(t * 2.3) * 0.2; shZ[1] = 0.25; }
     }
     // olhar para alguém
     if (this.lookAt) {
