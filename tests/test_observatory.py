@@ -16,7 +16,7 @@ def test_parse_events():
     text = "\n".join(json.dumps(x) for x in lines) + '\n{"type": "item.star'   # última linha ainda sendo escrita
     ev = ob.parse_events(text)
     assert [e["kind"] for e in ev] == ["message", "tool", "tool", "tool", "usage"]
-    assert ev[1]["phase"] == "start" and ev[2]["result"] == '{"status":"OK"}'
+    assert ev[1]["phase"] == "start" and ev[2]["data"] == {"status": "OK"}
     assert ev[3]["error"] == "RECUSADO BEAR_VETO: x"
 
 

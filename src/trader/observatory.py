@@ -16,16 +16,23 @@ from trader.config import CONFIG_DIR, DATA_DIR, ROOT
 from trader.db import connect
 
 PAGE = ROOT / "observatory" / "index.html"
+JS_DIR = ROOT / "observatory" / "js"
+JS_NAME = re.compile(r"^/js/([a-z]+)\.js$")
 LOGS = DATA_DIR / "logs"
 CYCLE_ID = re.compile(r"^(cycle|weekly)-\d{8}-\d{6}$")
 
 
-def short(result, n=700) -> str:
-    """Texto do resultado de uma tool MCP, cortado."""
+def result_text(result) -> str:
     if not isinstance(result, dict):
         return ""
-    text = " ".join(c.get("text", "") for c in result.get("content", []) if isinstance(c, dict))
-    return text[:n]
+    return " ".join(c.get("text", "") for c in result.get("content", []) if isinstance(c, dict))
+
+
+def parsed(text: str):
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return None
 
 
 def parse_events(text: str) -> list[dict]:
@@ -41,7 +48,9 @@ def parse_events(text: str) -> list[dict]:
             ev = {"kind": "tool", "id": item.get("id"), "tool": item.get("tool"), "args": item.get("arguments") or {},
                   "phase": "start" if t == "item.started" else "end"}
             if t == "item.completed":
-                ev["result"] = short(item.get("result"))
+                text = result_text(item.get("result"))
+                ev["data"] = parsed(text)                 # resultado inteiro, já como objeto: a cena escreve as falas
+                ev["result"] = text[:600]
                 ev["error"] = (item.get("error") or {}).get("message")
             events.append(ev)
         elif item.get("type") == "agent_message" and t == "item.completed":
@@ -98,6 +107,9 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path == "/":
             return self._send(200, PAGE.read_bytes(), "text/html; charset=utf-8")
+        m = JS_NAME.match(path)
+        if m and (JS_DIR / f"{m[1]}.js").is_file():
+            return self._send(200, (JS_DIR / f"{m[1]}.js").read_bytes(), "text/javascript; charset=utf-8")
         if path == "/api/meta":
             cc = yaml.safe_load((CONFIG_DIR / "cycle.yaml").read_text(encoding="utf-8"))
             rv = cc.get("codex_reviewers") or {}
