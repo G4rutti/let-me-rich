@@ -78,13 +78,78 @@ def build_cmd(kind: str, cc: dict, model: str | None) -> list[str]:
     ]
 
 
+# Codex: sem subagentes, sem shell/arquivos/web. Tudo que dá acesso fora do MCP é desligado (testado no codex-cli 0.154:
+# sem essas flags ele lê arquivos do repo, inclusive config/.env). code_mode_host fica: as tools MCP só passam por ele.
+# --ephemeral faz spawn_agent falhar; -s read-only barra o apply_patch.
+CODEX_OFF = ("shell_tool", "unified_exec", "browser_use", "browser_use_external", "computer_use",
+             "apps", "plugins", "in_app_browser", "image_generation", "view_image", "multi_agent", "tool_suggest",
+             "skill_search", "goals", "sleep_tool")
+CODEX_NOTE = ("\n\n### Neste modo (Codex)\n"
+              "Não há subagentes. Onde o texto manda usar o chart-reader, chame get_candles você mesmo (1h e 4h, "
+              "limit 60, no máximo 4 pares). Onde manda chamar o bear-reviewer, escreva você mesmo, ANTES de decidir, "
+              "o argumento mais forte CONTRA a entrada (tendência maior contra, rompimento sem volume, RSI esticado, "
+              "resistência logo acima, stop dentro do ruído, expectancy ruim do setup, correlação com posição aberta) "
+              "e dê uma força de 1 a 5. Força ≥ 4 → não entre.\n")
+
+
+def codex_prompt(kind: str) -> str:
+    rules = (ROOT / "CLAUDE.md").read_text(encoding="utf-8").split("## Operador", 1)[1]
+    return "# Instruções do operador" + rules + CODEX_NOTE + "\n" + PROMPT[kind]
+
+
+def build_codex_cmd(kind: str, cycle_id: str, cc: dict, model: str | None, schema: Path, last: Path) -> list[str]:
+    opts = cc["weekly"] if kind == "weekly" else cc
+    exe = cc.get("codex_path") or shutil.which("codex")
+    if not exe:
+        raise SystemExit("codex não encontrado; configure codex_path em config/cycle.yaml")
+    mcp = json.loads((ROOT / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["trader"]
+    toml = lambda v: json.dumps(v, ensure_ascii=False)   # noqa: E731 — string/array JSON é TOML válido
+    cmd = [exe, "exec", "--ignore-user-config", "--ignore-rules", "--ephemeral", "--skip-git-repo-check",
+           "-C", str(ROOT), "-s", "read-only", "--json", "--output-schema", str(schema), "-o", str(last),
+           "-m", model or opts["codex_model"], "-c", f"model_reasoning_effort={toml(opts['codex_effort'])}",
+           "-c", 'web_search="disabled"', "-c", 'approval_policy="never"',
+           "-c", f"mcp_servers.trader.command={toml(mcp['command'])}",
+           "-c", f"mcp_servers.trader.args={toml(mcp['args'])}",
+           "-c", f"mcp_servers.trader.env={{TRADER_CYCLE_ID={toml(cycle_id)},TRADER_CYCLE_KIND={toml(kind)}}}",
+           "-c", "mcp_servers.trader.startup_timeout_sec=120", "-c", "mcp_servers.trader.tool_timeout_sec=600"]
+    for f in CODEX_OFF:
+        cmd += ["--disable", f]
+    return cmd + ["-"]   # prompt via stdin: o CLAUDE.md passa do limite de linha de comando do Windows
+
+
+def parse_codex(out: str, last: Path) -> dict:
+    """Converte o JSONL do `codex exec --json` no formato do resultado do Claude que classify() entende."""
+    usage, failed = {}, False
+    for line in (out or "").splitlines():
+        try:
+            ev = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if ev.get("type") == "turn.completed":
+            usage = ev.get("usage") or usage
+        failed |= ev.get("type") in ("turn.failed", "error")
+    try:
+        so = json.loads(last.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return {"subtype": "success", "is_error": failed, "structured_output": so, "usage": usage, "num_turns": None}
+
+
 def run_claude(kind: str, cycle_id: str, cc: dict, model: str | None) -> tuple[dict, str]:
-    env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}   # em -p ela passaria na frente da assinatura
+    codex = cc.get("backend") == "codex"
+    # em modo headless a key da API passaria na frente da assinatura
+    env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "CODEX_API_KEY")}
     env.update(TRADER_CYCLE_ID=cycle_id, TRADER_CYCLE_KIND=kind, DISABLE_AUTOUPDATER="1")
     logs = DATA_DIR / "logs"
     logs.mkdir(parents=True, exist_ok=True)
+    stdin, schema, last = subprocess.DEVNULL, logs / f"{cycle_id}.schema.json", logs / f"{cycle_id}.last.json"
+    if codex:
+        schema.write_text(json.dumps(SCHEMA[kind]), encoding="utf-8")
+        cmd, stdin = build_codex_cmd(kind, cycle_id, cc, model, schema, last), None
+    else:
+        cmd = build_cmd(kind, cc, model)
     try:
-        p = subprocess.run(build_cmd(kind, cc, model), cwd=ROOT, env=env, stdin=subprocess.DEVNULL,
+        p = subprocess.run(cmd, cwd=ROOT, env=env, stdin=stdin, input=codex_prompt(kind) if codex else None,
                            capture_output=True, text=True, encoding="utf-8", errors="replace",
                            timeout=cc["timeout_min"] * 60)
         out, err = p.stdout, p.stderr
@@ -94,6 +159,8 @@ def run_claude(kind: str, cycle_id: str, cc: dict, model: str | None) -> tuple[d
     (logs / f"{cycle_id}.json").write_text(out or "", encoding="utf-8")
     if err:
         (logs / f"{cycle_id}.err").write_text(err, encoding="utf-8")
+    if codex:
+        return parse_codex(out, last), err
     try:
         return json.loads(out), err
     except (json.JSONDecodeError, TypeError):

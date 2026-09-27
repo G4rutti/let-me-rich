@@ -1,4 +1,8 @@
-# Como o run_cycle chama o Claude Code. O Claude NÃO edita este arquivo.
+# Como o run_cycle chama o agente. O agente NÃO edita este arquivo.
+backend: codex           # codex | claude
+codex_model: gpt-6-astra
+codex_effort: medium
+codex_path: null         # null = procura no PATH
 model: claude-opus-5-5
 effort: medium
 max_turns: 60
@@ -9,3 +13,5 @@ weekly:
   model: claude-opus-5-5
   effort: high
   max_turns: 40
+  codex_model: gpt-6-astra
+  codex_effort: high
