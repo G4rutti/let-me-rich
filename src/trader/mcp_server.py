@@ -14,6 +14,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import Field
 
+from trader import codex
 from trader import regime as regime_mod
 from trader import scan as scan_mod
 from trader.config import ROOT, load_config, load_secrets, valid_symbol
@@ -28,6 +29,7 @@ from trader.trading import (Ctx, TradeError, close_position as _close, move_stop
 
 CYCLE_ID = os.environ.get("TRADER_CYCLE_ID", "manual")
 CYCLE_KIND = os.environ.get("TRADER_CYCLE_KIND", "cycle")      # cycle | weekly
+BACKEND = os.environ.get("TRADER_BACKEND", "claude")          # codex: revisores independentes via codex.ask
 
 Symbol = Annotated[str, Field(pattern=r"^[A-Z0-9]{2,15}/USDT$", description="ex.: BTC/USDT")]
 Setup = Annotated[str, Field(pattern=r"^[a-z0-9_]{3,40}$", description="etiqueta do setup, ex.: swing_breakout_4h")]
@@ -138,6 +140,10 @@ def get_candles(symbol: Symbol, timeframe: Literal["15m", "1h", "4h", "1d"] = "1
                 limit: Annotated[int, Field(ge=20, le=200)] = 60) -> dict:
     """Velas OHLCV (mais recente por último) + indicadores já calculados para esse timeframe."""
     _symbol_ok(symbol)
+    return _candles(symbol, timeframe, limit)
+
+
+def _candles(symbol: str, timeframe: str, limit: int) -> dict:
     raw = ctx().ex.ohlcv(symbol, timeframe, max(limit, 60))
     closes = [c[4] for c in raw]
     last = closes[-1]
@@ -152,6 +158,43 @@ def get_candles(symbol: Symbol, timeframe: Literal["15m", "1h", "4h", "1d"] = "1
                        "atr14_pct": round(a / last * 100, 2) if a else None,
                        "donchian20_high": donchian_high(raw, 20),
                        "low_20": min(c[3] for c in raw[-20:]), "high_20": max(c[2] for c in raw[-20:])}}
+
+
+def _charts(symbol: str) -> dict:
+    return {tf: _candles(symbol, tf, 60) for tf in ("1h", "4h")}
+
+
+def _ask(role, instructions, data, schema) -> dict:
+    try:
+        return codex.ask(role, instructions, data, schema)
+    except codex.CodexError as e:   # fail-closed: sem revisão não tem entrada
+        raise TradeError("REVIEW_FAILED", str(e)[:200]) from None
+
+
+@mcp.tool(annotations={"readOnlyHint": True})
+@safe
+def read_charts(symbols: Annotated[list[Symbol], Field(min_length=1, max_length=4)]) -> dict:
+    """Leitor de gráficos (modelo separado, sem tools): tendência 1h/4h, suporte/resistência, ATR, padrão e
+    invalidação de até 4 pares. Use em vez de puxar velas cruas."""
+    for s in symbols:
+        _symbol_ok(s)
+    data = {"regime": _current_regime(), "pairs": {s: _charts(s) for s in symbols}}
+    return _ask("charts", codex.CHARTS, data, codex.CHARTS_SCHEMA)
+
+
+def _bear_review(symbol, horizon, setup, stop, target, reason) -> dict:
+    """Advogado do diabo independente (outro modelo, sem tools). Força >= 4 veta a entrada."""
+    c = ctx()
+    data = {"proposal": {"symbol": symbol, "horizon": horizon, "setup": setup, "stop": stop, "target": target,
+                         "thesis": reason},
+            "regime": _current_regime(), "charts": _charts(symbol),
+            "setup_stats": setup_stats(c.conn, c.cfg.risk["setup_stats"], setup),
+            "open_positions": [{k: p.get(k) for k in ("symbol", "category", "r_now")}
+                               for p in portfolio(c).get("positions", [])]}
+    r = _ask("bear", codex.BEAR, data, codex.BEAR_SCHEMA)
+    if r["strength"] >= 4 or r["verdict"] == "VETO":
+        raise TradeError("BEAR_VETO", f"força {r['strength']}: " + " | ".join(r["against"])[:250])
+    return r
 
 
 @mcp.tool(annotations={"readOnlyHint": True})
@@ -219,8 +262,10 @@ def place_entry(symbol: Symbol, horizon: Literal["intraday", "swing"], setup: Se
     last = get_state(c.conn, "last_scan") or {}
     if last.get("cycle_id") != CYCLE_ID or symbol not in last.get("passed", []):
         raise TradeError("NOT_IN_UNIVERSE", "só pares retornados pelo scan_market deste ciclo")
-    return _entry(c, symbol=symbol, horizon=horizon, setup=setup, stop=stop_price, target=target_price,
-                  reason=reason, regime=_current_regime()["regime"])
+    review = _bear_review(symbol, horizon, setup, stop_price, target_price, reason) if BACKEND == "codex" else None
+    r = _entry(c, symbol=symbol, horizon=horizon, setup=setup, stop=stop_price, target=target_price,
+               reason=reason, regime=_current_regime()["regime"])
+    return {**r, "bear_review": review} if review else r
 
 
 @mcp.tool(annotations={"destructiveHint": True})

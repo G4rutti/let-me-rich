@@ -12,7 +12,7 @@ from trader.trading import Ctx
 
 EXPECTED = {"preflight", "sync_positions", "get_regime", "scan_market", "get_candles", "get_portfolio",
             "get_setup_stats", "get_recent_journal", "get_pending_postmortems", "get_safety_status", "place_entry",
-            "move_stop", "take_partial", "close_position", "write_journal", "write_proposal"}
+            "move_stop", "take_partial", "close_position", "write_journal", "write_proposal", "read_charts"}
 
 
 @pytest.fixture

@@ -3,6 +3,9 @@ backend: codex           # codex | claude
 codex_model: gpt-6-astra
 codex_effort: medium
 codex_path: null         # null = procura no PATH
+codex_reviewers:         # modelos separados, sem tools: recebem os dados prontos do Python
+  bear: {model: gpt-5.6-sol, effort: medium}     # veto automático no place_entry (força >= 4)
+  charts: {model: gpt-5.6-luna, effort: low}     # tool read_charts
 model: claude-opus-5-5
 effort: medium
 max_turns: 60

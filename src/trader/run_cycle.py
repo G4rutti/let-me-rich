@@ -19,6 +19,7 @@ from pathlib import Path
 import yaml
 
 from trader import shadow
+from trader.codex import CODEX_OFF
 from trader.config import CONFIG_DIR, DATA_DIR, ROOT, load_config, load_secrets
 from trader.db import connect, get_state, insert, now_iso, update
 from trader.exchange import Exchange, ExchangeError
@@ -78,22 +79,18 @@ def build_cmd(kind: str, cc: dict, model: str | None) -> list[str]:
     ]
 
 
-# Codex: sem subagentes, sem shell/arquivos/web. Tudo que dá acesso fora do MCP é desligado (testado no codex-cli 0.154:
-# sem essas flags ele lê arquivos do repo, inclusive config/.env). code_mode_host fica: as tools MCP só passam por ele.
-# --ephemeral faz spawn_agent falhar; -s read-only barra o apply_patch.
-CODEX_OFF = ("shell_tool", "unified_exec", "browser_use", "browser_use_external", "computer_use",
-             "apps", "plugins", "in_app_browser", "image_generation", "view_image", "multi_agent", "tool_suggest",
-             "skill_search", "goals", "sleep_tool")
+# Codex: shell/arquivos/web desligados (CODEX_OFF); code_mode_host fica porque as tools MCP só passam por ele.
 CODEX_NOTE = ("\n\n### Neste modo (Codex)\n"
               "O servidor MCP `trader` está conectado, mas as tools dele NÃO aparecem soltas na sua lista: chame-as "
               "por dentro do `functions.exec` (ex.: preflight, sync_positions, place_entry). Onde o texto diz "
               "`mcp__trader__*`, entenda as tools desse servidor. Nunca conclua que estão indisponíveis sem antes "
               "tentar chamar o preflight pelo functions.exec.\n"
-              "Não há subagentes. Onde o texto manda usar o chart-reader, chame get_candles você mesmo (1h e 4h, "
-              "limit 60, no máximo 4 pares). Onde manda chamar o bear-reviewer, escreva você mesmo, ANTES de decidir, "
-              "o argumento mais forte CONTRA a entrada (tendência maior contra, rompimento sem volume, RSI esticado, "
-              "resistência logo acima, stop dentro do ruído, expectancy ruim do setup, correlação com posição aberta) "
-              "e dê uma força de 1 a 5. Força ≥ 4 → não entre.\n")
+              "Não há subagentes; os papéis deles são tools do trader com modelos independentes e sem acesso a nada:\n"
+              "- chart-reader → `read_charts(symbols)` (até 4 pares; devolve tendência, suporte/resistência, ATR, "
+              "padrão e invalidação). Use-o em vez de puxar velas cruas.\n"
+              "- bear-reviewer → roda AUTOMATICAMENTE dentro do `place_entry`: com força ≥ 4 a entrada volta "
+              "`RECUSADO BEAR_VETO` com os argumentos. Aceite; não reenvie a mesma entrada mudando números. Mesmo "
+              "assim, escreva o melhor argumento a favor antes de propor a entrada.\n")
 
 
 def codex_prompt(kind: str) -> str:
@@ -114,8 +111,9 @@ def build_codex_cmd(kind: str, cycle_id: str, cc: dict, model: str | None, schem
            "-c", 'web_search="disabled"', "-c", 'approval_policy="never"',
            "-c", f"mcp_servers.trader.command={toml(mcp['command'])}",
            "-c", f"mcp_servers.trader.args={toml(mcp['args'])}",
-           "-c", f"mcp_servers.trader.env={{TRADER_CYCLE_ID={toml(cycle_id)},TRADER_CYCLE_KIND={toml(kind)}}}",
+           "-c", f"mcp_servers.trader.env={{TRADER_CYCLE_ID={toml(cycle_id)},TRADER_CYCLE_KIND={toml(kind)},TRADER_BACKEND=\"codex\"}}",
            "-c", "mcp_servers.trader.startup_timeout_sec=120", "-c", "mcp_servers.trader.tool_timeout_sec=600",
+           "-c", "mcp_servers.trader.required=true",   # espera o MCP subir; sem isso o modelo às vezes não acha as tools
            # sem isso o Codex pede aprovação p/ tools que escrevem e, com approval_policy=never, recusa todas.
            # As travas de verdade (risk manager, RECUSADO, limites) estão no código do MCP.
            "-c", 'mcp_servers.trader.default_tools_approval_mode="approve"']
