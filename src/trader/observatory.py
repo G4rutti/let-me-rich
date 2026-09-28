@@ -54,7 +54,7 @@ def parse_events(text: str) -> list[dict]:
                 ev["error"] = (item.get("error") or {}).get("message")
             events.append(ev)
         elif item.get("type") == "agent_message" and t == "item.completed":
-            events.append({"kind": "message", "text": item.get("text", "")[:1500]})
+            events.append({"kind": "message", "text": item.get("text", "")})
         elif t == "turn.completed":
             events.append({"kind": "usage", "usage": e.get("usage") or {}})
         elif t in ("turn.failed", "error"):

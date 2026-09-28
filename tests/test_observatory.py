@@ -22,3 +22,11 @@ def test_parse_events():
 
 def test_cycle_id_valida_caminho():
     assert ob.cycle("../config/.env") is None and ob.cycle("cycle-1") is None
+
+
+def test_summary_message_preserves_valid_json():
+    summary = {"actions": [{"detail": "Motivo detalhado. " * 120}], "summary": "Sem nova entrada."}
+    message = json.dumps(summary)
+    event = {"type": "item.completed", "item": {"type": "agent_message", "text": message}}
+    parsed = ob.parse_events(json.dumps(event))
+    assert json.loads(parsed[0]["text"])["summary"] == "Sem nova entrada."

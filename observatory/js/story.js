@@ -109,8 +109,55 @@ function answer(tool, d, a, i) {
     case "move_stop": return { text: `Feito. Stop de ${sym(a.symbol)} agora em ${px(a.new_stop)}.`, mood: "good" };
     case "take_partial": return { text: `Parcial executada em ${sym(a.symbol)}.`, mood: "good" };
     case "close_position": return { text: `Posição em ${sym(a.symbol)} zerada.`, mood: "good" };
-    default: return { text: cut(JSON.stringify(d), 160) };
+    default: return { text: "Consulta concluída." };
   }
+}
+
+// Ao vivo: uma fala por evento, sem encenar respostas ou atrasar a atualização.
+function readableText(value, fallback) {
+  if (typeof value !== "string") {
+    if (value && typeof value === "object") {
+      for (const key of ["summary", "message", "text", "reason", "detail", "error"]) {
+        if (value[key]) return readableText(value[key], fallback);
+      }
+    }
+    return fallback;
+  }
+  const text = value.trim();
+  if (/^[{\[]/.test(text)) {
+    try { return readableText(JSON.parse(text), fallback); } catch { return fallback; }
+  }
+  return text || fallback;
+}
+
+export function liveBeatFor(ev) {
+  if (ev.kind === "usage") return { system: true, usage: ev.usage };
+  if (ev.kind === "message") return { who: "astra", text: readableText(ev.text, "Análise do ciclo concluída.") };
+  if (ev.kind === "error") return { who: "astra", mood: "bad", text: `Ocorreu um problema: ${readableText(ev.text, "não foi possível concluir esta etapa.")}` };
+  if (ev.kind !== "tool") return null;
+  const tool = ev.tool, who = STATION_OF[tool] || "mesa", a = ev.args || {};
+  if (ev.phase === "start") {
+    let text = ask(tool, a, 0);
+    if (tool === "write_journal") {
+      const action = { skip: "Decidi não entrar", entry: "Registrei uma entrada", manage: "Atualizei a gestão", postmortem: "Revisei a operação encerrada", cycle_note: "Anotei o andamento do ciclo" }[a.kind] || "Fiz uma anotação";
+      text = `${action}${a.symbol ? ` em ${sym(a.symbol)}` : ""}. ${readableText(a.thesis || a.lesson, "Vou registrar no diário.")}`;
+    }
+    if (!STATION_OF[tool]) text = "Vou consultar os dados desta etapa.";
+    return { who: "astra", to: who, text };
+  }
+  if (ev.error) return { who, mood: "bad", text: `Não consegui concluir: ${readableText(ev.error, "a operação retornou um erro.")}` };
+  let d = ev.data;
+  if (d == null && ev.result) { try { d = JSON.parse(ev.result); } catch { /* resultado em texto */ } }
+  if (!d || typeof d !== "object") return { who, text: readableText(ev.result, "Etapa concluída, sem detalhes adicionais.") };
+  if (tool === "place_entry") return { who: "mesa", text: d.trade_id
+    ? `Entrada registrada${a.symbol ? ` em ${sym(a.symbol)}` : ""}, operação nº ${d.trade_id}.`
+    : readableText(d, "Avaliação de entrada concluída.") };
+  if (tool === "write_journal") return { who, text: "Registrado no diário." };
+  if (tool === "read_charts") return { who, text: (d.pairs || []).map((p) =>
+    `${sym(p.symbol)}: tendência de ${p.trend_4h || "direção não informada"} no gráfico de 4 horas e ${p.trend_1h || "direção não informada"} no de 1 hora. ${p.pattern ? `Padrão: ${p.pattern}. ` : ""}Suporte em ${px(p.support)} e resistência em ${px(p.resistance)}.${p.invalidation != null ? ` Nível que invalida a análise: ${px(p.invalidation)}.` : ""}`
+  ).join("\n\n") || "A leitura dos gráficos não trouxe resultados." };
+  try { return { who, ...answer(tool, d, a, 0) }; }
+  catch { return { who, text: "Consulta concluída; os dados disponíveis não permitem um resumo desta etapa." }; }
 }
 
 function problem(text) {   // recusas e erros → frase curta
@@ -190,6 +237,7 @@ export const IDLE = [
 
 // resenha na sinuca/café entre ciclos: só zoeira, nenhum dado de mercado
 export const RESENHA = [
+  ["luna", "sol", "Sol, fecha essa aba anônima. O café já ficou pronto."], ["sol", "luna", "Era pesquisa de suporte e resistência. Juro."],
   ["astra", "sol", "Sua vez, Sol. Bola 3 no canto."], ["sol", "astra", "Aposto que você erra. Força 4 de 5."],
   ["luna", "astra", "Esse café tá mais forte que o volume de hoje."], ["astra", "luna", "Pelo menos café não toma stop."],
   ["sol", "luna", "Tacada limpa. Diferente daquele rompimento sem volume."], ["luna", "sol", "Mira no suporte, não na resistência."],

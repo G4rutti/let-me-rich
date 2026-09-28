@@ -6,7 +6,7 @@ import { RenderPixelatedPass } from "three/addons/postprocessing/RenderPixelated
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { buildWorld } from "./world.js";
 import { Person } from "./people.js";
-import { beatsFor, IDLE, RESENHA, STATION_OF } from "./story.js";
+import { beatsFor, liveBeatFor, IDLE, RESENHA, STATION_OF } from "./story.js";
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -118,19 +118,22 @@ async function goResenha() {
   await Promise.all(Object.entries(r.assign).map(async ([who, key]) => {
     const p = cast[who], s = world.lounge.slots[key];
     if (p.state === "sit") { p.state = "stand"; await sleep(300); }
+    if (resenha !== r) return;
     await p.walk(routeOf(who, key));
     if (resenha !== r) return;
     if (s.seat) p.sit(s.seat, s.yaw); else { p.faceTo(s.face); p.setActivity(s.activity); }
   }));
 }
 async function backToWork() {   // chegou evento: todo mundo volta andando pro seu lugar
+  const my = epoch;
   const r = resenha; resenha = null; if (!r) return;
   await Promise.all(Object.entries(r.assign).map(async ([who, key]) => {
     const p = cast[who], route = routeOf(who, key);
     p.setActivity(null); if (p.state === "sit") { p.state = "stand"; await sleep(250); }
+    if (my !== epoch) return;
     let k = 0; route.forEach((pt, i) => { if (pt.distanceTo(p.pos) < route[k].distanceTo(p.pos)) k = i; });
     await p.walk([...route.slice(0, k + 1).reverse(), HOME[who][0]]);
-    p.sit(...HOME[who]);
+    if (my === epoch) p.sit(...HOME[who]);
   }));
 }
 async function poolLoop() {   // tacadas alternadas
@@ -139,7 +142,7 @@ async function poolLoop() {   // tacadas alternadas
     if (!resenha) continue;
     const players = Object.values(cast).filter((p) => p.activity === "pool"); if (!players.length) continue;
     const p = players[turn % players.length]; p.faceTo(world.lounge.pool.center); p.shoot();
-    await sleep(1000 / speed()); world.lounge.pool.shoot();
+    await sleep(1000 / speed()); if (resenha && p.activity === "pool") world.lounge.pool.shoot();
   }
 }
 
@@ -317,6 +320,10 @@ let current = null, events = [], idx = 0, paused = false, live = false, epoch = 
 async function runner() {
   for (;;) {
     const my = epoch;
+    if (live) {
+      if (liveReady && !current?.running && !resenha && performance.now() - lastActivity > 3000) goResenha();
+      await sleep(200); continue;
+    }
     if (paused || idx >= events.length) {
       if (!paused && !resenha && !current?.running && performance.now() - lastActivity > 12000) goResenha();   // à toa = sem ciclo rodando
       await sleep(200); continue;
@@ -330,11 +337,12 @@ async function runner() {
 async function idleChatter() {   // entre ciclos, o escritório conversa (não vai pro histórico)
   for (let k = Math.floor(Math.random() * IDLE.length); ; k += 2) {
     await sleep(4000);
-    if (paused || idx < events.length || performance.now() - lastActivity < 20000) continue;
+    if ((live && (!liveReady || current?.running || !resenha)) || paused || idx < events.length || performance.now() - lastActivity < 20000) continue;
     const lines = resenha ? RESENHA : IDLE;
     for (const [who, to, text] of [lines[k % lines.length], lines[(k + 1) % lines.length]]) {
+      if (live && (!liveReady || current?.running || !resenha)) break;
       const a = cast[who], b = cast[to]; a.lookAt = b.worldHead(); b.lookAt = a.worldHead();
-      a.talk(3000); habboSay(a, text, { to: NAMES[to] }); await sleep(3200);
+      a.talk(3000); habboSay(a, text, { to: `${NAMES[to]} · intervalo` }); await sleep(3200);
     }
     lastActivity = performance.now() - 5000;
   }
@@ -355,42 +363,119 @@ function reset(soft = false) {   // soft: ciclo novo ao vivo — quem está na r
 }
 function pushEvents(list) { for (let i = events.length; i < list.length; i++) events.push(list[i]); }
 async function load(id, soft = false) {
+  const requestEpoch = epoch;
   const c = await (await fetch("/api/cycle/" + id)).json();
+  if (live || requestEpoch !== epoch) return;
   reset(soft); current = c;
   const when = (c.started_at || "").replace("T", " ").slice(0, 16);
   $("meta").innerHTML = `<b>${esc(c.id.replace(/^(cycle|weekly)-/, ""))}</b> · ${esc(c.status)} · ${esc(when)} UTC` +
     (c.running ? ` · <span class="live-tag">rodando agora</span>` : "");
-  $("room-sub").textContent = c.running ? "ciclo rodando agora" : `ciclo ${c.id.replace(/^(cycle|weekly)-/, "")}`;
+  $("room-sub").textContent = `REPLAY · ${c.id}`;
   pushEvents(c.events);
   if (!c.events.length && c.summary) renderSummary(c.summary);
 }
 async function refreshList(select) {
   const list = await (await fetch("/api/cycles")).json();
   const sel = $("cycles"), keep = sel.value;
-  sel.innerHTML = list.map((c) => `<option value="${c.id}">${c.id.replace(/^(cycle|weekly)-/, "")} · ${c.status}</option>`).join("");
-  sel.value = select || keep || (list[0] && list[0].id);
+  sel.innerHTML = '<option value="">Histórico — escolher replay</option>' + list.map((c) => `<option value="${c.id}">${c.id.replace(/^(cycle|weekly)-/, "")} · ${c.status}</option>`).join("");
+  sel.value = live ? "" : (select || keep || "");
   return list;
 }
-async function livePoll() {
-  if (!live) return;
+let liveSession = 0, liveTimer = null, liveReady = false, scheduleCycle = null;
+function nextCycleBoard(now) {
+  if (!live) return ["REPLAY", "Volte ao ao vivo", "para ver a previsão"];
+  if (!liveReady) return ["SEM CONEXÃO", "Horário indisponível", "Aguardando atualização"];
+  if (current?.running) return ["EM EXECUÇÃO", "Equipe trabalhando", "Depois: pausa de 30 min"];
+  const ended = Date.parse(scheduleCycle?.ended_at);
+  if (!Number.isFinite(ended)) return ["AGUARDANDO", "Sem horário previsto", "Nenhum término registrado"];
+  const next = ended + 30 * 60 * 1000;
+  const time = new Date(next).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
+  if (now >= next) return [`PREVISTO ${time}`, "Aguardando início", "Horário não confirmado"];
+  const seconds = Math.ceil((next - now) / 1000);
+  return [`${time} · Brasília`, `Faltam ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`, "Previsão · intervalo de 30 min"];
+}
+function showLiveEvent(ev) {
+  if (ev.kind === "usage") { state.tokens = ev.usage; renderBar(); return; }
+  const beat = liveBeatFor(ev);
+  if (!beat?.text) return;
+  if (ev.kind === "tool" && ev.data != null) absorb(ev.tool, ev.data);
+  chat(beat);
+  const text = beat.text.length > 380 ? beat.text.slice(0, 377) + "…" : beat.text;
+  habboSay(cast[beat.who], text, { to: NAMES[beat.to] || "" });
+}
+function liveStatus(c) {
+  Object.keys(working).forEach((k) => setWorking(k, false));
+  const pending = new Map();
+  for (const ev of c?.events || []) if (ev.kind === "tool") {
+    if (ev.phase === "start") pending.set(ev.id, ev);
+    else pending.delete(ev.id);
+  }
+  if (c?.running) for (const ev of pending.values()) setWorking(STATION_OF[ev.tool], true);
+  const status = c?.running
+    ? (pending.size ? `Executando: ${[...pending.values()].map((e) => e.tool).join(", ")}` : "Ciclo em execução · aguardando próximo evento do bot")
+    : "Nenhum ciclo em execução · intervalo: café e sinuca (animação)";
+  $("room-sub").textContent = status;
+  $("meta").textContent = `AO VIVO · ${status}. Atualizado às ${new Date().toLocaleTimeString("pt-BR")}.`;
+  state.last = status;
+}
+async function livePoll(session, baseline = false) {
+  if (!live || session !== liveSession) return;
   try {
     const list = await refreshList();
-    const newest = list[0];
-    if (newest && (!current || newest.id !== current.id)) { await refreshList(newest.id); await load(newest.id, !!current); }
-    else if (current && (current.running || current.status === "?")) {
-      const c = await (await fetch("/api/cycle/" + current.id)).json();
-      current.running = c.running; current.status = c.status; pushEvents(c.events);
+    const newest = list.find((c) => c.status === "running") || list[0];
+    const response = newest ? await fetch("/api/cycle/" + newest.id) : null;
+    if (response && !response.ok) throw new Error("Falha ao consultar ciclo");
+    const c = response ? await response.json() : null;
+    if (!live || session !== liveSession) return;
+    scheduleCycle = list.find((entry) => entry.id.startsWith("cycle-")) || null;
+    const changed = current?.id !== c?.id;
+    const start = baseline ? (c?.events.length || 0) : changed ? 0 : events.length;
+    if (changed) { reset(true); }
+    if (c?.running && resenha) { clearBubbles(); void backToWork(); }
+    if (c && (c.running || (!changed && current?.running))) {
+      if (c.events.length > start) clearBubbles();
+      for (const ev of c.events.slice(start)) showLiveEvent(ev);
     }
-  } catch (e) { console.warn(e); }
-  setTimeout(livePoll, 2000);
+    if (current?.running && !c?.running) lastActivity = performance.now();
+    current = c; events = c?.events || []; idx = events.length;
+    liveReady = true;
+    liveStatus(c);
+    baseline = false;
+  } catch (e) {
+    if (!live || session !== liveSession) return;
+    liveReady = false;
+    if (resenha) void backToWork();
+    clearBubbles();
+    Object.keys(working).forEach((k) => setWorking(k, false));
+    $("meta").textContent = "Sem conexão com o observatório · estado atual desconhecido · tentando reconectar";
+    $("room-sub").textContent = "Estado atual desconhecido";
+    console.warn(e);
+  }
+  liveTimer = setTimeout(() => livePoll(session, baseline), 2000);
+}
+function setLive(on) {
+  liveReady = false; scheduleCycle = null;
+  live = on; liveSession++; clearTimeout(liveTimer);
+  reset(); current = null; paused = false;
+  $("play").textContent = "⏸ pausar";
+  $("live").classList.toggle("on", live);
+  for (const id of ["play", "restart", "speed"]) $(id).disabled = live;
+  if (live) {
+    $("cycles").value = "";
+    $("meta").textContent = "Conectando ao estado atual do bot…";
+    livePoll(liveSession, true);
+  } else {
+    $("meta").textContent = "Acompanhamento desligado · selecione um ciclo para replay";
+    $("room-sub").textContent = "REPLAY · selecione um ciclo";
+  }
 }
 
 // ------------------------------------------------------------------ controles
 let follow = false;
-$("cycles").onchange = (e) => { if (live) $("live").click(); load(e.target.value); };
+$("cycles").onchange = (e) => { const id = e.target.value; if (!id) return; setLive(false); load(id); };
 $("play").onclick = () => { paused = !paused; $("play").textContent = paused ? "▶ continuar" : "⏸ pausar"; };
 $("restart").onclick = () => current && load(current.id);
-$("live").onclick = () => { live = !live; $("live").classList.toggle("on", live); if (live) livePoll(); };
+$("live").onclick = () => setLive(!live);
 $("follow").onclick = () => { follow = !follow; $("follow").classList.toggle("on", follow); };
 $("pixel").onclick = () => { pixel = { 2: 3, 3: 1, 1: 2 }[pixel]; pixelPass.setPixelSize(pixel); $("pixel").textContent = `▦ pixel ${pixel}×`; };
 $("center").onclick = () => { const d = TARGET.clone().sub(controls.target); controls.target.add(d); camera.position.add(d); camera.zoom = 1; camera.updateProjectionMatrix(); };
@@ -426,7 +511,7 @@ function frame() {
     if (Math.floor(t) % 3 === 0) world.traders.forEach((d) => d.desk.screens.forEach((s) => drawScreen(s, t * 0.6, false)));
   }
   if (t - lastWall > 0.1) { lastWall = t; drawWall(Date.now()); drawTicker(Date.now()); }
-  if (t - lastClock > 1) { lastClock = t; world.clock(Date.now()); }
+  if (t - lastClock > 1) { lastClock = t; world.clock(Date.now()); world.schedule(nextCycleBoard(Date.now())); }
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i]; f.t += dt * sp;
     f.l.intensity *= 0.94; const s = 1 + f.t * 7; f.ring.scale.set(s, s, s); f.ring.material.opacity = Math.max(0, 1 - f.t / 1.4);
@@ -451,11 +536,9 @@ addEventListener("resize", () => {
 });
 
 (async () => {
-  const meta = await (await fetch("/api/meta")).json();
+  const meta = await fetch("/api/meta").then((r) => r.json()).catch(() => ({}));
   const role = (p, txt) => { const s = p.tagObj?.element.querySelector("small"); if (s) s.textContent = txt; };
   role(cast.astra, `operador · ${meta.operator || "?"}`); role(cast.luna, `gráficos · ${meta.charts || "?"}`); role(cast.sol, `advogado do diabo · ${meta.bear || "?"}`);
-  const list = await refreshList();
-  if (list.length) await load(list[0].id);
-  if (list[0]?.status === "running") $("live").click();
+  setLive(true);
   renderBar(); tick(); runner(); idleChatter(); poolLoop();
 })();

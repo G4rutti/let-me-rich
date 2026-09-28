@@ -319,6 +319,27 @@ function lounge(scene) {
   };
   return { pool, slots, machineAt };
 }
+function scheduleBoard(scene) {
+  const face = screenCanvas(640, 320);
+  const frame = new THREE.Group();
+  frame.position.set(LEFT + 0.08, 2.7, -9.5); frame.rotation.y = Math.PI / 2;
+  scene.add(frame);
+  box(4.6, 2.35, 0.1, M.walnut, 0, 0, 0, frame);
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(4.35, 2.1), new THREE.MeshBasicMaterial({ map: face.t }));
+  panel.position.z = 0.065; frame.add(panel);
+  return ([time, detail, note]) => {
+    const { g, t } = face;
+    g.fillStyle = "#173a33"; g.fillRect(0, 0, 640, 320);
+    g.textAlign = "center";
+    g.fillStyle = "#f2c14e"; g.font = "bold 34px sans-serif";
+    g.fillText("PRÓXIMO CICLO", 320, 52);
+    g.fillStyle = "#fffdf5"; g.font = "bold 48px sans-serif";
+    g.fillText(time, 320, 134, 602);
+    g.font = "30px sans-serif"; g.fillText(detail, 320, 208, 602);
+    g.fillStyle = "#b6d1c5"; g.font = "24px sans-serif"; g.fillText(note, 320, 279, 602);
+    t.needsUpdate = true;
+  };
+}
 function wallClock(scene) {
   const face = screenCanvas(64, 64);
   const m = new THREE.Mesh(new THREE.CircleGeometry(0.55, 24), new THREE.MeshBasicMaterial({ map: face.t }));
@@ -352,5 +373,5 @@ export function buildWorld(scene) {
     chair(scene, x, z + 0.95, Math.PI);
     traders.push({ desk: d, seat: new THREE.Vector3(x, 0, z + 0.95) });
   }
-  return { exchange, vault, archive, luna, sol, astraDesk, traders, lounge: lounge_, astraSeat: new THREE.Vector3(0, 0, -2.05), clock: wallClock(scene) };
+  return { exchange, vault, archive, luna, sol, astraDesk, traders, lounge: lounge_, astraSeat: new THREE.Vector3(0, 0, -2.05), clock: wallClock(scene), schedule: scheduleBoard(scene) };
 }
