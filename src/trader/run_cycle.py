@@ -98,12 +98,16 @@ def codex_prompt(kind: str) -> str:
     return "# Instruções do operador" + rules + CODEX_NOTE + "\n" + PROMPT[kind]
 
 
-def build_codex_cmd(kind: str, cycle_id: str, cc: dict, model: str | None, schema: Path, last: Path) -> list[str]:
+def build_codex_cmd(kind: str, cycle_id: str, cc: dict, model: str | None, schema: Path, last: Path,
+                    mcp_module: str | None = None) -> list[str]:
+    """mcp_module: troca o servidor MCP (ex.: trader.mcp_server_b3), mantendo o nome "trader" e o mesmo isolamento."""
     opts = cc["weekly"] if kind == "weekly" else cc
     exe = cc.get("codex_path") or shutil.which("codex")
     if not exe:
         raise SystemExit("codex não encontrado; configure codex_path em config/cycle.yaml")
-    mcp = json.loads((ROOT / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["trader"]
+    mcp = dict(json.loads((ROOT / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["trader"])
+    if mcp_module:
+        mcp["args"] = [*mcp["args"][:-1], mcp_module]
     toml = lambda v: json.dumps(v, ensure_ascii=False)   # noqa: E731 — string/array JSON é TOML válido
     cmd = [exe, "exec", "--ignore-user-config", "--ignore-rules", "--ephemeral", "--skip-git-repo-check",
            "-C", str(ROOT), "-s", "read-only", "--json", "--output-schema", str(schema), "-o", str(last),
