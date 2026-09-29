@@ -46,7 +46,29 @@ def cmd_b3(ctx: Ctx) -> str:
              f"resta no dia R${p['daily_loss_left_brl']:.2f} | resta no total R${p['total_loss_left_brl']:.2f}"]
     for t in open_trades(b):
         lines.append(f"posição: {t['side']} {t['contracts']}x @ {t['entry_price']} SL {t['sl']} TP {t['tp']} ({t['setup']})")
+    from trader.b3.calendar import next_event
+    ev = next_event(b.now())
+    if ev:
+        lines.append(f"próximo evento: {ev['at']} {ev['name']} ({ev.get('impact')})")
     return "\n".join(lines)
+
+
+def plan_text(p: dict | None) -> str:
+    if not p:
+        return "B3: sem plano para hoje (sem plano = sem operação)"
+    lines = [f"plano {p['date']} v{p.get('version')}: bias {p['bias']} | risco {p['risk_level']}", p["summary"]]
+    for s in p["setups"]:
+        tr = s["trigger"]
+        lines.append(f"{'✅' if s['active'] else '⛔'} {s['id']} {s['setup']} {s['direction']} "
+                     f"{tr['type']} {tr.get('level_ref') or tr.get('price')} ({tr['timeframe']}) "
+                     f"{s['window']['from']}-{s['window']['to']} bear {s['bear_review']['strength']}")
+    return "\n".join(lines)
+
+
+def cmd_plano(ctx: Ctx) -> str:
+    from datetime import date
+    from trader.plan import active_plan
+    return plan_text(active_plan(ctx.conn, date.today().isoformat()))
 
 
 def cmd_status(ctx: Ctx) -> str:
@@ -96,6 +118,8 @@ def handle(ctx: Ctx, text: str) -> str:
         return cmd_pnl(ctx)
     if name == "/b3":
         return cmd_b3(ctx)
+    if name == "/plano":
+        return cmd_plano(ctx)
     if name == "/pause":
         set_state(ctx.conn, "paused", True)
         set_state(ctx.conn, "b3_paused", True)

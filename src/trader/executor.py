@@ -26,6 +26,18 @@ from trader.db import get_state, insert, now_iso, set_state
 VARIANTS = ("real", "sombra_regra", "sombra_sem_macro")
 
 
+def analyst_views(conn, day: date) -> dict:
+    """Leitura resumida de cada analista da manhã (para medir concordância depois)."""
+    row = conn.execute("SELECT dossier_json FROM b3_dossiers WHERE day=?", (day.isoformat(),)).fetchone()
+    if not row:
+        return {}
+    a = json.loads(row["dossier_json"]).get("analysts", {})
+    pick = lambda k, f: a.get(k, {}).get(f) if isinstance(a.get(k), dict) else None   # noqa: E731
+    return {"macro": pick("macro", "risk_level"), "context": pick("context", "external_bias"),
+            "flow": pick("flow", "aggression"), "tech": pick("tech", "regime"), "bull": pick("bull", "bias"),
+            "bear": pick("bear", "bias")}
+
+
 def plan_for(variant: str, conn, day: date) -> dict | None:
     if variant == "sombra_regra":
         return pl.rule_plan(day)
@@ -175,8 +187,9 @@ class Executor:
                          {**detail, "sl": str(a.sl), "tp": str(a.tp)})
             try:
                 t = tb.enter(ctx, a, setup=x["setup"], setup_id=sid, plan=plan,
-                             context={"regime": json.dumps(m["regime"]), "trigger_level": pl.ref_price(x["trigger"], m["levels"]),
-                                      "bar": bar_key})
+                             context={"regime": m["regime"].get("daily"), "regime_full": m["regime"],
+                                      "trigger_level": pl.ref_price(x["trigger"], m["levels"]), "bar": bar_key,
+                                      "analysts": analyst_views(ctx.conn, now.date())})
                 out["entries"].append({"variant": variant, "setup_id": sid, "trade_id": t["id"]})
             except tb.TradeError as e:
                 self._signal(ctx, variant, now, sid, bar_key + "#err", x["direction"], "error", e.code, {"hint": e.hint})
@@ -199,10 +212,7 @@ def build(cfg, conn, broker, symbol: str, notify, now_fn=None) -> Executor:
     for c in ctxs.values():
         if c.broker.is_paper:
             tb.restore_paper(c)
-    try:
-        from trader.analytics import setup_status
-    except ImportError:
-        setup_status = lambda ctx, setup: "NEUTRO"   # noqa: E731
+    from trader.analytics import setup_status
     from trader.b3 import calendar
     from trader.collectors.recorder import record
     now = (now_fn or ctxs["real"].now)()
@@ -239,7 +249,8 @@ def main(argv: list[str]) -> int:
                 for e in r["events"]:
                     print(e)
                 time.sleep(cfg["executor"]["poll_seconds"])
-            say("⏹️ B3 executor encerrado (fim do pregão)")
+            from trader.analytics import day_summary
+            say("⏹️ B3 executor encerrado (fim do pregão)\n" + day_summary(conn, date.today().isoformat()))
             return 0
     except BlockingIOError:
         print("outro executor B3 rodando; saindo")
