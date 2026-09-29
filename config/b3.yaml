@@ -1,0 +1,54 @@
+# Modo B3 (day trade de WIN via MetaTrader 5). O agente NÃO edita este arquivo (deny + hooks/guard.py).
+# Validado no carregamento (trader.b3.config): config inválida ou inconsistente = não opera.
+
+mode: "off"                    # off | dry | live   ("live" só escrito à mão)
+account_number: null           # conta MT5 real esperada; live exige bater com a conta logada
+capital_start_brl: 100         # gravado no banco no primeiro live; base da perda total
+terminal_path: null            # caminho do terminal64.exe; null = o MetaTrader5 acha o terminal aberto
+magic: 770101                  # identifica as ordens do bot no MT5
+
+instrument:
+  root: WIN
+  point_value_brl: 0.20
+  tick_points: 5
+  roll_days_before_expiry: 2   # dias úteis antes do vencimento em que já opera o próximo contrato
+  history_symbol: "WIN$"       # [VERIFICAR] nome do contínuo na Clear
+
+risk:
+  max_contracts_hard: 1        # teto duro; o código ignora qualquer valor acima de 1
+  risk_per_trade_brl: 30       # inclui custos estimados; com 1 contrato isso define o stop máximo
+  daily_loss_max_brl: 30       # perda realizada + aberta; na prática 1 stop cheio encerra o dia
+  total_loss_max_brl: 60       # desde capital_start; bateu = zera, desliga agendador, só religa à mão
+  max_trades_per_day: 2        # o 2º trade só acontece se o risco dele couber no que resta do limite diário
+  cooldown_after_stop_min: 30
+  stop_min_points: 60
+  stop_max_points: 135         # = (30 - 3 de custo) / 0,20; ver regra de consistência
+  max_stop_atr: 1.5            # ATR 5m
+  min_rr: 1.5
+  costs_per_contract_brl: 1.0  # emolumentos + taxas estimados ida+volta [VERIFICAR com nota de corretagem]
+  slippage_points: 10          # R$2 com 1 contrato; custo total estimado ~R$3/trade
+  min_target_cost_multiple: 3
+  max_consecutive_order_failures: 3
+
+reduced_day:                   # risk_level "reduzido" (com 1 contrato não dá pra reduzir tamanho)
+  max_trades_per_day: 1
+  only_with_bias: true
+  stop_max_points: 100
+
+session:                       # horário de Brasília; [VERIFICAR B3/Clear, muda com horário de verão dos EUA]
+  plan_deadline: "08:45"
+  no_entry_before: "09:15"
+  no_entry_after: "16:30"
+  flatten_at: "17:30"          # antes da zeragem compulsória da corretora
+  revise_every_min: 60
+
+filters:
+  block_event_window_min: 30
+  block_expiry_day: true
+  max_spread_ticks: 2
+
+executor:
+  poll_seconds: 2
+  sl_confirm_seconds: 5        # posição sem SL confirmado depois disso = zera a mercado
+  watchdog_every_s: 60
+  book_every_s: 10             # snapshot do book (se a corretora entregar)

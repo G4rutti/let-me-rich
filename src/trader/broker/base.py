@@ -28,6 +28,17 @@ class Account:
 
 
 @dataclass(frozen=True)
+class SymbolSpec:
+    symbol: str
+    tick_size: Decimal       # em pontos
+    tick_value: Decimal      # R$ por tick por contrato
+    volume_min: Decimal
+    volume_step: Decimal
+    tradeable: bool          # negociação plena (compra e venda)
+    expiration: datetime | None = None
+
+
+@dataclass(frozen=True)
 class Bar:
     time: datetime         # abertura da barra, horário de Brasília
     open: Decimal
@@ -89,10 +100,17 @@ class Fill:
 class Broker(Protocol):
     def account(self) -> Account: ...
     def connected(self) -> bool: ...
+    def symbol_spec(self, symbol: str) -> SymbolSpec: ...
+    # timeframe: 1m | 5m | 15m | 60m | 1d; a barra em formação vem por último
     def bars(self, symbol: str, timeframe: str, count: int) -> list[Bar]: ...
     def ticks(self, symbol: str, since: datetime) -> list[Tick]: ...
+    def last_tick(self, symbol: str) -> Tick: ...
+    # {'bids': [(preço, volume)], 'asks': [...]} ou None se a corretora não entrega book
+    def book(self, symbol: str) -> dict | None: ...
     def positions(self, symbol: str | None = None) -> list[Position]: ...
     def orders(self, symbol: str | None = None) -> list[Order]: ...
+    # execuções que fecharam a posição (vazio se ainda aberta)
+    def exit_fills(self, position_ticket: int) -> list[Fill]: ...
 
     # escrita: chamada SÓ depois do risk manager
     def place_entry(self, symbol: str, side: Side, volume: Decimal, sl: Decimal, tp: Decimal,
