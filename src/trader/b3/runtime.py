@@ -7,7 +7,7 @@
 from datetime import date, datetime
 
 from trader import risk_b3 as rk
-from trader.b3 import instrument
+from trader.b3 import calendar, instrument
 from trader.broker.base import BrokerError
 from trader.broker.sim import SimBroker
 from trader.trading_b3 import TZ, B3Ctx, day_state
@@ -71,6 +71,9 @@ def preflight(cfg, conn, broker, now: datetime | None = None) -> dict:
         out["contract"] = {"symbol": c.symbol, "expiry": c.expiry.isoformat()}
         if cfg["filters"]["block_expiry_day"] and expiry_today(cfg, broker, now.date()):
             blocks.append("dia de vencimento do contrato")
+        if calendar.blocked(now.date()):
+            blocks.append("dia bloqueado em b3_calendar.yaml")
+        out["events_today"] = calendar.events_on(now.date())
         tk = broker.last_tick(c.symbol)
         lag = abs((now - tk.time).total_seconds())
         out["last_tick"] = {"time": tk.time.isoformat(timespec="seconds"), "bid": float(tk.bid), "ask": float(tk.ask)}

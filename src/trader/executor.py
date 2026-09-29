@@ -36,9 +36,10 @@ def plan_for(variant: str, conn, day: date) -> dict | None:
 
 
 class Executor:
-    def __init__(self, ctxs: dict[str, tb.B3Ctx], *, expiry_day: bool = False, events_fn=lambda d: (),
-                 setup_status_fn=lambda ctx, setup: "NEUTRO", record_fn=None):
+    def __init__(self, ctxs: dict[str, tb.B3Ctx], *, expiry_day: bool = False, entries_blocked: bool = False,
+                 events_fn=lambda d: (), setup_status_fn=lambda ctx, setup: "NEUTRO", record_fn=None):
         self.ctxs = ctxs
+        self.entries_blocked = entries_blocked        # dia bloqueado à mão em b3_calendar.yaml
         self.real = ctxs["real"]
         self.cfg = self.real.cfg
         self.expiry_day = expiry_day
@@ -135,7 +136,7 @@ class Executor:
                     tb.move_stop(ctx, t, be, "+1R: stop na entrada")
                 except tb.TradeError as e:
                     events.append(f"{variant}: breakeven recusado {e}")
-        if not plan:
+        if not plan or self.entries_blocked:
             return events
         # entradas: no máximo uma por passo
         st = tb.day_state(ctx, plan)
@@ -202,13 +203,11 @@ def build(cfg, conn, broker, symbol: str, notify, now_fn=None) -> Executor:
         from trader.analytics import setup_status
     except ImportError:
         setup_status = lambda ctx, setup: "NEUTRO"   # noqa: E731
-    try:
-        from trader.b3.calendar import high_impact_times
-    except ImportError:
-        high_impact_times = lambda d: ()   # noqa: E731
+    from trader.b3 import calendar
     from trader.collectors.recorder import record
     now = (now_fn or ctxs["real"].now)()
-    return Executor(ctxs, expiry_day=expiry_today(cfg, broker, now.date()), events_fn=high_impact_times,
+    return Executor(ctxs, expiry_day=expiry_today(cfg, broker, now.date()), entries_blocked=calendar.blocked(now.date()),
+                    events_fn=calendar.high_impact_times,
                     setup_status_fn=setup_status,
                     record_fn=lambda t: record(conn, broker, symbol, t, book=True))
 

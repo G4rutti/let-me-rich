@@ -1,0 +1,19 @@
+# Fontes externas do dossiê da manhã (coletadas em Python; o operador não acessa a web). O agente NÃO edita.
+# Falha de fonte não bloqueia o dia: o campo vai como "indisponível".
+
+market:                      # Yahoo Finance (endpoint público de gráfico) [VERIFICAR disponibilidade/termos]
+  sp500_futuro: "ES=F"
+  ewz: "EWZ"
+  usdbrl: "BRL=X"
+  brent: "BZ=F"
+  minerio: "TIO=F"           # [VERIFICAR] ticker do minério de ferro
+  vix: "^VIX"
+  # DI futuro não tem fonte gratuita estável no Yahoo; entra quando houver fonte
+
+news:                        # RSS: só título, fonte, horário e resumo curto
+  max_items: 25
+  max_age_hours: 16
+  feeds:
+    - {name: "InfoMoney Mercados", url: "https://www.infomoney.com.br/mercados/feed/"}
+    - {name: "Valor Investe", url: "https://valorinveste.globo.com/rss/valor-investe/"}
+    - {name: "Reuters Business", url: "https://feeds.reuters.com/reuters/businessNews"}
