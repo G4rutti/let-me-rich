@@ -25,6 +25,7 @@ class Account:
     currency: str
     balance: Decimal
     equity: Decimal
+    trade_allowed: bool = True   # terminal com Algo Trading ligado e conta liberada para robô
 
 
 @dataclass(frozen=True)
