@@ -6,6 +6,6 @@ $roots = Get-CimInstance Win32_Process | Where-Object {
 if ($Kill) {
     foreach ($p in $roots) { taskkill /T /F /PID $p.ProcessId 2>&1 | Out-Null }
     # sobras (ex.: ciclo órfão)
-    Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'trader\.(run_cycle|mcp_server|telegram_daemon)' } |
+    Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'trader\.(run_cycle|mcp_server|mcp_server_b3|telegram_daemon|executor|watchdog|morning|run_b3|observatory)' } |
         ForEach-Object { taskkill /T /F /PID $_.ProcessId 2>&1 | Out-Null }
 } elseif ($roots) { exit 0 } else { exit 1 }

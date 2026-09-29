@@ -23,7 +23,7 @@ def write(tmp_path, c):
 
 def test_config_do_repo_carrega_e_teto_bate_com_spec():
     c = b3c.load_b3()
-    assert c["mode"] == "off"
+    assert c["mode"] != "live"                              # o repo nunca vem em live
     assert b3c.cost_brl(c) == pytest.approx(3.0)
     assert b3c.stop_ceiling(c) == 135
 
@@ -109,3 +109,13 @@ def test_check_spec():
     assert check_spec(cfg, spec(tradeable=False), c)[0]
     assert check_spec(cfg, spec(volume_step=Dec("0.5")), c)[0]
     assert check_spec(cfg, spec(expiration=datetime(2026, 10, 15)), c)[1]
+
+
+def test_sessao_de_teste_so_em_dry(tmp_path, monkeypatch):
+    monkeypatch.setenv("B3_TEST_SESSION", "17:20,17:25,17:55,18:10")
+    c = raw()
+    c["mode"] = "dry"
+    assert b3c.load_b3(write(tmp_path, c))["session"]["no_entry_before"] == "17:25"
+    c.update(mode="live", account_number=1)
+    with pytest.raises(ConfigError, match="só é aceito com mode: dry"):
+        b3c.load_b3(write(tmp_path, c))

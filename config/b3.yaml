@@ -1,7 +1,7 @@
 # Modo B3 (day trade de WIN via MetaTrader 5). O agente NÃO edita este arquivo (deny + hooks/guard.py).
 # Validado no carregamento (trader.b3.config): config inválida ou inconsistente = não opera.
 
-mode: "off"                    # off | dry | live   ("live" só escrito à mão)
+mode: "dry"                    # off | dry | live   ("live" só escrito à mão)
 account_number: null           # conta MT5 real esperada; live exige bater com a conta logada
 capital_start_brl: 100         # gravado no banco no primeiro live; base da perda total
 terminal_path: null            # caminho do terminal64.exe; null = o MetaTrader5 acha o terminal aberto

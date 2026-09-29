@@ -1,5 +1,6 @@
 """Carrega e valida config/b3.yaml. Inválida ou inconsistente = ConfigError = não opera."""
 import math
+import os
 import re
 from datetime import time
 from pathlib import Path
@@ -108,6 +109,14 @@ def load_b3(config_dir: Path = CONFIG_DIR) -> MappingProxyType:
         raise ConfigError("b3.yaml vazio ou inválido")
     if c.get("mode") is False:            # YAML 1.1: `mode: off` sem aspas vira False
         c["mode"] = "off"
+    test = os.environ.get("B3_TEST_SESSION")   # "HH:MM,HH:MM,HH:MM,HH:MM": sessão de teste (b3_hoje.bat), só em dry
+    if test:
+        if c["mode"] != "dry":
+            raise ConfigError("B3_TEST_SESSION só é aceito com mode: dry")
+        vals = test.split(",")
+        if len(vals) != 4:
+            raise ConfigError("B3_TEST_SESSION = plan_deadline,no_entry_before,no_entry_after,flatten_at")
+        c["session"].update(zip(("plan_deadline", "no_entry_before", "no_entry_after", "flatten_at"), vals))
     validate(c)
     c["risk"]["max_contracts_hard"] = 1   # teto duro: qualquer valor acima de 1 é ignorado
     return _freeze(c)

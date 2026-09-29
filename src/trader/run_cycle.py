@@ -115,7 +115,8 @@ def build_codex_cmd(kind: str, cycle_id: str, cc: dict, model: str | None, schem
            "-c", 'web_search="disabled"', "-c", 'approval_policy="never"',
            "-c", f"mcp_servers.trader.command={toml(mcp['command'])}",
            "-c", f"mcp_servers.trader.args={toml(mcp['args'])}",
-           "-c", f"mcp_servers.trader.env={{TRADER_CYCLE_ID={toml(cycle_id)},TRADER_CYCLE_KIND={toml(kind)},TRADER_BACKEND=\"codex\"}}",
+           "-c", f"mcp_servers.trader.env={{TRADER_CYCLE_ID={toml(cycle_id)},TRADER_CYCLE_KIND={toml(kind)},TRADER_BACKEND=\"codex\""
+                 + (f",B3_TEST_SESSION={toml(os.environ['B3_TEST_SESSION'])}" if os.environ.get("B3_TEST_SESSION") else "") + "}",
            "-c", "mcp_servers.trader.startup_timeout_sec=120", "-c", "mcp_servers.trader.tool_timeout_sec=600",
            "-c", "mcp_servers.trader.required=true",   # espera o MCP subir; sem isso o modelo às vezes não acha as tools
            # sem isso o Codex pede aprovação p/ tools que escrevem e, com approval_policy=never, recusa todas.
