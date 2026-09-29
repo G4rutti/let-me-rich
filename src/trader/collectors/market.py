@@ -24,8 +24,9 @@ def quote(ticker: str, get=httpx.get) -> dict | str:
                 headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         res = r.json()["chart"]["result"][0]
         closes = [c for c in res["indicators"]["quote"][0]["close"] if c is not None]
-        last = res["meta"].get("regularMarketPrice") or closes[-1]
-        prev = closes[-2] if len(closes) >= 2 else None
+        # só a série de fechamentos: o regularMarketPrice do Yahoo às vezes é de outro vencimento
+        # (TIO=F em 2026-09-29: 161,91 com fechamentos ~97 -> "+66%")
+        last, prev = closes[-1], (closes[-2] if len(closes) >= 2 else None)
         return {"last": round(last, 4), "prev_close": round(prev, 4) if prev else None,
                 "change_pct": round((last / prev - 1) * 100, 2) if prev else None}
     except Exception:  # noqa: BLE001 — qualquer falha de fonte vira "indisponível"

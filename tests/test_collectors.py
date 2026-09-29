@@ -59,7 +59,7 @@ def test_mercado_externo(tmp_path):
         return SimpleNamespace(json=lambda: {"chart": {"result": [{"meta": {"regularMarketPrice": 30.3},
                                                                     "indicators": {"quote": [{"close": [29.0, 30.0, None]}]}}]}})
     r = market.collect(get=get, config_dir=tmp_path)
-    assert r["ewz"] == {"last": 30.3, "prev_close": 29.0, "change_pct": 4.48}
+    assert r["ewz"] == {"last": 30.0, "prev_close": 29.0, "change_pct": 3.45}     # ignora o meta divergente
     assert r["quebrado"] == "indisponível"
 
 
