@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from trader.exchange import D, MarketRules
+from trader.broker.binance_spot import D, MarketRules
 
 
 @dataclass(frozen=True)

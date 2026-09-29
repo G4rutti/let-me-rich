@@ -22,7 +22,7 @@ from trader import shadow
 from trader.codex import CODEX_OFF
 from trader.config import CONFIG_DIR, DATA_DIR, ROOT, load_config, load_secrets
 from trader.db import connect, get_state, insert, now_iso, update
-from trader.exchange import Exchange, ExchangeError
+from trader.broker.binance_spot import Exchange, ExchangeError
 from trader.lock import exclusive
 from trader.notify import notify
 from trader.regime import get_regime

@@ -10,7 +10,7 @@ import httpx
 
 from trader.config import load_config, load_secrets
 from trader.db import connect, get_state, set_state
-from trader.exchange import Exchange, ExchangeError
+from trader.broker.binance_spot import Exchange, ExchangeError
 from trader.kill import kill
 from trader.lock import exclusive
 from trader.notify import notify

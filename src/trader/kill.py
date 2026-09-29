@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 from trader.db import set_state, update
-from trader.exchange import D, ExchangeError, client_id
+from trader.broker.binance_spot import D, ExchangeError, client_id
 from trader.trading import Ctx, _finalize, account_sell, active_trades
 
 TASKS = ("let-me-rich-cycle", "let-me-rich-weekly")
@@ -70,7 +70,7 @@ def main() -> None:
         sys.exit("uso: python -m trader.kill --yes   (vende TUDO a mercado)")
     from trader.config import load_config, load_secrets
     from trader.db import connect
-    from trader.exchange import Exchange
+    from trader.broker.binance_spot import Exchange
     from trader.notify import notify
     secrets = load_secrets()
     ctx = Ctx(connect(), Exchange(secrets), load_config(), cycle_id="kill", notify=lambda m: notify(m, secrets))

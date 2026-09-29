@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from trader import risk
 from trader.db import get_state, insert, now_iso, update
-from trader.exchange import D, ExchangeError
+from trader.broker.binance_spot import D, ExchangeError
 from trader.indicators import atr
 from trader.journal import audit, orphan_intents
 from trader.trading import (ACTIVE, Ctx, TradeError, _finalize, _held_qty, _mark_open, _sell_market, _send,

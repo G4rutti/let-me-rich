@@ -10,7 +10,7 @@ from typing import Callable
 
 from trader import risk
 from trader.db import get_state, insert, now_iso, set_state, update
-from trader.exchange import D, ExchangeError, client_id
+from trader.broker.binance_spot import D, ExchangeError, client_id
 from trader.journal import audit, setup_stats
 
 ACTIVE = ("NEW", "PARTIALLY_FILLED", "PENDING_NEW")

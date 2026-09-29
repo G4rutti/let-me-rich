@@ -19,7 +19,7 @@ from trader import regime as regime_mod
 from trader import scan as scan_mod
 from trader.config import ROOT, load_config, load_secrets, valid_symbol
 from trader.db import connect, get_state, set_state
-from trader.exchange import Exchange, ExchangeError
+from trader.broker.binance_spot import Exchange, ExchangeError
 from trader.indicators import atr, donchian_high, ema, rsi
 from trader.journal import (recent_journal, setup_stats, trades_pending_postmortem, write_journal as _write_journal)
 from trader.notify import notify

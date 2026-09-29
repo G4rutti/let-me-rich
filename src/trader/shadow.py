@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from trader import risk
 from trader.db import get_state, insert, now_iso, set_state, update
-from trader.exchange import D
+from trader.broker.binance_spot import D
 
 
 def signal(c: dict):

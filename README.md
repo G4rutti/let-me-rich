@@ -63,8 +63,8 @@ Crie um bot com o @BotFather → `TELEGRAM_BOT_TOKEN`. Mande uma mensagem ao bot
 
 ## Imposto e regulação (Brasil)
 - O CSV (`report --csv`) traz data UTC, par, lado, quantidade, preço, taxa e ativo da taxa, cotação USDT/BRL do momento e IDs. Se a Binance contar como exchange estrangeira para você, vale a Lei 14.754/2023 (15% sobre ganho anual, sem isenção de R$ 35 mil). Confirme com um contador.
-- Resoluções BCB 519–521: exchanges precisam protocolar pedido de autorização até 30/10/2026. Até 18/09/2026 a Binance não havia protocolado publicamente. O código usa ccxt; trocar de exchange exige reimplementar só a entrada protegida (OPOCO/OCO) em `exchange.py`.
+- Resoluções BCB 519–521: exchanges precisam protocolar pedido de autorização até 30/10/2026. Até 18/09/2026 a Binance não havia protocolado publicamente. O código usa ccxt; trocar de exchange exige reimplementar só a entrada protegida (OPOCO/OCO) em `broker/binance_spot.py`.
 
 ## Estrutura
-`src/trader/`: `risk.py` (puro), `exchange.py` (ccxt + OPOCO/OCO), `trading.py` (operações), `sync.py` (reconciliação + preflight), `scan.py`, `regime.py`, `shadow.py`, `journal.py`, `mcp_server.py`, `run_cycle.py`, `telegram_daemon.py`, `kill.py`, `report.py`.
+`src/trader/`: `risk.py` (puro), `broker/binance_spot.py` (ccxt + OPOCO/OCO), `broker/base.py` (interface de corretora), `trading.py` (operações), `sync.py` (reconciliação + preflight), `scan.py`, `regime.py`, `shadow.py`, `journal.py`, `mcp_server.py`, `run_cycle.py`, `telegram_daemon.py`, `kill.py`, `report.py`.
 Dados em `data/` (SQLite, logs, audit JSONL append-only): não versionado.
