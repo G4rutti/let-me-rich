@@ -6,6 +6,12 @@ codex_path: null         # null = procura no PATH
 codex_reviewers:         # modelos separados, sem tools: recebem os dados prontos do Python
   bear: {model: gpt-5.6-sol, effort: medium}     # veto automático no place_entry (força >= 4)
   charts: {model: gpt-5.6-luna, effort: low}     # tool read_charts
+  # equipe da manhã do modo B3 (morning.py): cada um recebe só os dados do seu tema
+  macro: {model: gpt-5.6-sol, effort: medium}     # agenda + manchetes -> risk_level sugerido (filtro, não sinal)
+  context: {model: gpt-5.6-luna, effort: low}     # mercados externos -> viés externo
+  tech: {model: gpt-5.6-luna, effort: low}        # features e regime do WIN -> níveis e cenários
+  flow: {model: gpt-5.6-luna, effort: low}        # agressão/book do pregão anterior
+  bull: {model: gpt-5.6-sol, effort: medium}      # argumenta o viés do dia (o bear do B3 usa o papel "bear")
 model: claude-opus-5-5
 effort: medium
 max_turns: 60

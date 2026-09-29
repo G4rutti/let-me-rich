@@ -12,7 +12,8 @@ from trader.config import DATA_DIR, valid_symbol
 from trader.db import insert, now_iso
 
 SETUP_RE = re.compile(r"^[a-z0-9_]{3,40}$")
-KINDS = ("entry", "skip", "manage", "postmortem", "cycle_note")
+KINDS = ("entry", "skip", "manage", "postmortem", "cycle_note", "day_note")
+B3_SYMBOL_RE = re.compile(r"^[A-Z]{3}[FGHJKMNQUVXZ]\d{2}$")   # ex.: WINV26
 MAX_TEXT = 300
 _CTRL = re.compile(r"[\x00-\x1f\x7f-\x9f​-‏ -‮⁠-⁯]")
 
@@ -52,12 +53,13 @@ def orphan_intents(conn, since_hours: int = 48) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def write_journal(conn, cycle_id, entry: dict, author: str = "claude") -> int:
+def write_journal(conn, cycle_id, entry: dict, author: str = "claude", market: str = "crypto") -> int:
     kind = entry.get("kind")
     if kind not in KINDS:
         raise ValueError(f"kind deve ser um de {KINDS}")
     symbol, setup = entry.get("symbol"), entry.get("setup")
-    if symbol is not None and not valid_symbol(symbol):
+    ok = valid_symbol if market == "crypto" else B3_SYMBOL_RE.fullmatch
+    if symbol is not None and not ok(symbol):
         raise ValueError("symbol inválido")
     if setup is not None and not SETUP_RE.fullmatch(setup):
         raise ValueError("setup deve casar ^[a-z0-9_]{3,40}$")
@@ -68,13 +70,13 @@ def write_journal(conn, cycle_id, entry: dict, author: str = "claude") -> int:
         "ts": now_iso(), "cycle_id": cycle_id, "author": author, "kind": kind, "symbol": symbol,
         "setup": setup, "trade_id": trade_id, "thesis": clean_text(entry.get("thesis")),
         "outcome": clean_text(entry.get("outcome")), "lesson": clean_text(entry.get("lesson")),
-        "data_json": json.dumps(entry.get("data") or {}, default=str)[:2000],
+        "data_json": json.dumps(entry.get("data") or {}, default=str)[:2000], "market": market,
     })
 
 
-def recent_journal(conn, n: int = 20) -> list[dict]:
+def recent_journal(conn, n: int = 20, market: str = "crypto") -> list[dict]:
     rows = conn.execute("SELECT id, ts, author, kind, symbol, setup, trade_id, thesis, outcome, lesson "
-                        "FROM journal ORDER BY id DESC LIMIT ?", (min(n, 50),)).fetchall()
+                        "FROM journal WHERE market=? ORDER BY id DESC LIMIT ?", (market, min(n, 50))).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -83,7 +85,7 @@ def trades_pending_postmortem(conn) -> list[dict]:
         SELECT id, symbol, setup, horizon, entry_price, initial_stop, target_price, exit_price, exit_reason,
                pnl_usd, r_multiple, opened_at, closed_at, reason AS entry_reason
         FROM trades t WHERE status='closed' AND NOT EXISTS (
-            SELECT 1 FROM journal j WHERE j.kind='postmortem' AND j.trade_id=t.id)
+            SELECT 1 FROM journal j WHERE j.kind='postmortem' AND j.market='crypto' AND j.trade_id=t.id)
         ORDER BY closed_at""").fetchall()
     return [dict(r) for r in rows]
 

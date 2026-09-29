@@ -1,8 +1,8 @@
-"""Exchange falsa com a mesma interface de trader.exchange.Exchange (só o que o bot usa)."""
+"""Exchange falsa com a mesma interface de trader.broker.binance_spot.Exchange (só o que o bot usa)."""
 import itertools
 from decimal import Decimal as Dec
 
-from trader.exchange import ExchangeError
+from trader.broker.binance_spot import ExchangeError
 
 
 class FakeExchange:

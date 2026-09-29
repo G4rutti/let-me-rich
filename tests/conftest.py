@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from trader.exchange import rules_from_info
+from trader.broker.binance_spot import rules_from_info
 
 FIX = Path(__file__).parent / "fixtures"
 

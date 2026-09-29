@@ -22,7 +22,7 @@ from trader import shadow
 from trader.codex import CODEX_OFF
 from trader.config import CONFIG_DIR, DATA_DIR, ROOT, load_config, load_secrets
 from trader.db import connect, get_state, insert, now_iso, update
-from trader.exchange import Exchange, ExchangeError
+from trader.broker.binance_spot import Exchange, ExchangeError
 from trader.lock import exclusive
 from trader.notify import notify
 from trader.regime import get_regime
@@ -98,12 +98,16 @@ def codex_prompt(kind: str) -> str:
     return "# Instruções do operador" + rules + CODEX_NOTE + "\n" + PROMPT[kind]
 
 
-def build_codex_cmd(kind: str, cycle_id: str, cc: dict, model: str | None, schema: Path, last: Path) -> list[str]:
+def build_codex_cmd(kind: str, cycle_id: str, cc: dict, model: str | None, schema: Path, last: Path,
+                    mcp_module: str | None = None) -> list[str]:
+    """mcp_module: troca o servidor MCP (ex.: trader.mcp_server_b3), mantendo o nome "trader" e o mesmo isolamento."""
     opts = cc["weekly"] if kind == "weekly" else cc
     exe = cc.get("codex_path") or shutil.which("codex")
     if not exe:
         raise SystemExit("codex não encontrado; configure codex_path em config/cycle.yaml")
-    mcp = json.loads((ROOT / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["trader"]
+    mcp = dict(json.loads((ROOT / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["trader"])
+    if mcp_module:
+        mcp["args"] = [*mcp["args"][:-1], mcp_module]
     toml = lambda v: json.dumps(v, ensure_ascii=False)   # noqa: E731 — string/array JSON é TOML válido
     cmd = [exe, "exec", "--ignore-user-config", "--ignore-rules", "--ephemeral", "--skip-git-repo-check",
            "-C", str(ROOT), "-s", "read-only", "--json", "--output-schema", str(schema), "-o", str(last),
@@ -111,7 +115,8 @@ def build_codex_cmd(kind: str, cycle_id: str, cc: dict, model: str | None, schem
            "-c", 'web_search="disabled"', "-c", 'approval_policy="never"',
            "-c", f"mcp_servers.trader.command={toml(mcp['command'])}",
            "-c", f"mcp_servers.trader.args={toml(mcp['args'])}",
-           "-c", f"mcp_servers.trader.env={{TRADER_CYCLE_ID={toml(cycle_id)},TRADER_CYCLE_KIND={toml(kind)},TRADER_BACKEND=\"codex\"}}",
+           "-c", f"mcp_servers.trader.env={{TRADER_CYCLE_ID={toml(cycle_id)},TRADER_CYCLE_KIND={toml(kind)},TRADER_BACKEND=\"codex\""
+                 + (f",B3_TEST_SESSION={toml(os.environ['B3_TEST_SESSION'])}" if os.environ.get("B3_TEST_SESSION") else "") + "}",
            "-c", "mcp_servers.trader.startup_timeout_sec=120", "-c", "mcp_servers.trader.tool_timeout_sec=600",
            "-c", "mcp_servers.trader.required=true",   # espera o MCP subir; sem isso o modelo às vezes não acha as tools
            # sem isso o Codex pede aprovação p/ tools que escrevem e, com approval_policy=never, recusa todas.

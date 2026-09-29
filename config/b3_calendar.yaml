@@ -1,0 +1,9 @@
+# Agenda de eventos de alto impacto (editada à mão; é a fonte da verdade). O agente NÃO edita este arquivo.
+# Horário de Brasília. impact: alto bloqueia entradas na janela filters.block_event_window_min do b3.yaml.
+# Preencha com as datas oficiais (BCB/Copom, IBGE/IPCA e PIB, BLS/payroll e CPI, Fed/FOMC). Exemplo de formato:
+#   - {date: "2026-10-28", time: "18:30", name: "Copom decisão", country: BR, impact: alto}
+
+events: []
+
+# Dias sem operação (feriado, evento que você não quer operar, viagem...). Ex.: ["2026-11-20"]
+blocked_days: []

@@ -129,6 +129,75 @@ CREATE TABLE IF NOT EXISTS state (
     key TEXT PRIMARY KEY,
     value TEXT
 );
+-- ---- modo B3 (WIN via MT5) ----
+CREATE TABLE IF NOT EXISTS b3_trades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    variant TEXT NOT NULL,              -- real | sombra_regra | sombra_sem_macro
+    mode TEXT NOT NULL,                 -- live | dry (dry e sombras = papel)
+    day TEXT NOT NULL,                  -- pregão (data de Brasília)
+    symbol TEXT NOT NULL,
+    setup TEXT NOT NULL,
+    setup_id TEXT NOT NULL,
+    side TEXT NOT NULL,                 -- long | short
+    status TEXT NOT NULL,               -- pending | open | closed | cancelled
+    contracts INTEGER NOT NULL,
+    comment TEXT,                       -- vai na ordem do MT5 (idempotência/reconciliação)
+    position_ticket INTEGER,
+    signal_price REAL NOT NULL,         -- bid/ask no momento do sinal
+    entry_price REAL,
+    initial_sl REAL NOT NULL,
+    sl REAL NOT NULL,
+    tp REAL NOT NULL,
+    risk_brl REAL NOT NULL,             -- perda planejada no stop, custos incluídos (= 1R)
+    slippage_points REAL,               -- positivo = pior que o sinal
+    created_at TEXT NOT NULL,
+    opened_at TEXT,
+    closed_at TEXT,
+    exit_price REAL,
+    exit_reason TEXT,                   -- stop | target | breakeven | invalidation | flatten | manual | watchdog | kill
+    pnl_brl REAL,
+    r_multiple REAL,
+    plan_version INTEGER,
+    bias TEXT,
+    risk_level TEXT,
+    regime TEXT,
+    context_json TEXT                   -- leitura dos analistas, nível do gatilho etc.
+);
+CREATE TABLE IF NOT EXISTS b3_bars (
+    symbol TEXT NOT NULL, tf TEXT NOT NULL, time TEXT NOT NULL,
+    open REAL, high REAL, low REAL, close REAL, volume REAL,
+    PRIMARY KEY (symbol, tf, time)
+);
+CREATE TABLE IF NOT EXISTS b3_ticks (
+    symbol TEXT NOT NULL, time TEXT NOT NULL, bid REAL, ask REAL, last REAL, volume REAL, aggressor TEXT
+);
+CREATE TABLE IF NOT EXISTS b3_book (symbol TEXT NOT NULL, time TEXT NOT NULL, book_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS b3_plans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    day TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    kind TEXT NOT NULL,                 -- plan | revise
+    created_at TEXT NOT NULL,
+    cycle_id TEXT,
+    plan_json TEXT NOT NULL,
+    UNIQUE (day, version)
+);
+CREATE TABLE IF NOT EXISTS b3_signals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    day TEXT NOT NULL,
+    variant TEXT NOT NULL,
+    setup_id TEXT NOT NULL,
+    bar_time TEXT NOT NULL,
+    side TEXT NOT NULL,
+    decision TEXT NOT NULL,             -- approved | rejected | error
+    code TEXT,
+    detail_json TEXT,
+    UNIQUE (variant, setup_id, bar_time)
+);
+CREATE TABLE IF NOT EXISTS b3_dossiers (day TEXT PRIMARY KEY, created_at TEXT NOT NULL, dossier_json TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS ix_b3_trades_day ON b3_trades(day, variant);
+CREATE INDEX IF NOT EXISTS ix_b3_ticks ON b3_ticks(symbol, time);
 CREATE INDEX IF NOT EXISTS ix_trades_status ON trades(status);
 CREATE INDEX IF NOT EXISTS ix_trades_symbol ON trades(symbol);
 CREATE INDEX IF NOT EXISTS ix_shadow_status ON shadow_trades(status);
@@ -149,6 +218,8 @@ def connect(path: Path | str | None = None) -> sqlite3.Connection:
     if str(path) != ":memory:":
         conn.execute("PRAGMA journal_mode=WAL")
     conn.executescript(SCHEMA)
+    if "market" not in {r["name"] for r in conn.execute("PRAGMA table_info(journal)")}:
+        conn.execute("ALTER TABLE journal ADD COLUMN market TEXT NOT NULL DEFAULT 'crypto'")   # crypto | b3
     return conn
 
 

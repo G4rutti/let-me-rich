@@ -10,11 +10,11 @@ from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 
 import ccxt
 
+from trader.broker.base import BrokerError
 
-class ExchangeError(Exception):
-    def __init__(self, code: str, message: str):
-        super().__init__(f"{code}: {message}")
-        self.code = code
+
+class ExchangeError(BrokerError):
+    pass
 
 
 def D(x) -> Decimal:

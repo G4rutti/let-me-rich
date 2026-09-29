@@ -1,6 +1,6 @@
 """Checagem SOMENTE LEITURA da conexão: `uv run python -m trader.check`. Não envia ordem."""
 from trader.config import load_secrets
-from trader.exchange import Exchange
+from trader.broker.binance_spot import Exchange
 
 
 def main() -> None:

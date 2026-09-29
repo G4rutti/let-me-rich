@@ -167,7 +167,7 @@ def test_circuit_breaker_pauses_after_failures(env):
     env.ex.cancel_list("BTC/USDT", lid)
     env.ex.fail_oco = 10
     env.ex.prices["BTC/USDT"] = Dec(65000)
-    env.ex.market_sell = lambda *a: (_ for _ in ()).throw(__import__("trader.exchange").exchange.ExchangeError("X", "down"))
+    env.ex.market_sell = lambda *a: (_ for _ in ()).throw(__import__("trader.broker.binance_spot").broker.binance_spot.ExchangeError("X", "down"))
     sync(env)
     assert get_state(env.conn, "consecutive_order_failures") >= 3
     assert get_state(env.conn, "paused") is True

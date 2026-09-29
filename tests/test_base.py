@@ -4,7 +4,7 @@ import pytest
 
 from trader import indicators as ind
 from trader.config import ConfigError, load_config, validate_risk
-from trader.exchange import client_id, rules_from_info
+from trader.broker.binance_spot import client_id, rules_from_info
 
 
 def test_config_loads_and_categorizes():

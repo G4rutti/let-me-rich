@@ -19,7 +19,7 @@ PAGE = ROOT / "observatory" / "index.html"
 JS_DIR = ROOT / "observatory" / "js"
 JS_NAME = re.compile(r"^/js/([a-z]+)\.js$")
 LOGS = DATA_DIR / "logs"
-CYCLE_ID = re.compile(r"^(cycle|weekly)-\d{8}-\d{6}$")
+CYCLE_ID = re.compile(r"^(cycle|weekly|b3plan|b3revise|b3close|b3weekly)-\d{8}-\d{6}$")   # cripto e B3
 
 
 def result_text(result) -> str:
