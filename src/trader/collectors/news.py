@@ -28,14 +28,15 @@ def _text(el, tag):
 
 
 def _when(s: str) -> datetime | None:
+    """Horário do item; sem fuso = UTC (alguns feeds mandam só 'AAAA-MM-DD HH:MM:SS')."""
     try:
         d = parsedate_to_datetime(s)
-        return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
     except (TypeError, ValueError):
         try:
-            return datetime.fromisoformat(s.replace("Z", "+00:00"))
+            d = datetime.fromisoformat(s.replace("Z", "+00:00"))
         except ValueError:
             return None
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
 
 
 def parse(xml: str, source: str) -> list[dict]:

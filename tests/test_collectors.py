@@ -61,3 +61,9 @@ def test_mercado_externo(tmp_path):
     r = market.collect(get=get, config_dir=tmp_path)
     assert r["ewz"] == {"last": 30.3, "prev_close": 29.0, "change_pct": 4.48}
     assert r["quebrado"] == "indisponível"
+
+
+def test_horario_sem_fuso_vira_utc():
+    assert news._when("2026-10-01 12:00:00").tzinfo is not None
+    assert news._when("Thu, 01 Oct 2026 12:00:00").tzinfo is not None
+    assert news._when("lixo") is None
