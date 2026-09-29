@@ -24,3 +24,4 @@ $obs = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'tra
 if (-not $obs) { Start-Hidden "observatorio" @("trader.observatory") }
 Start-Hidden "executor" @("trader.executor")
 Start-Hidden "manha" @("trader.morning", "--then-plan")
+Start-Hidden "revisao" @("trader.run_b3", "--loop")   # operador relê o mercado a cada revise_every_min

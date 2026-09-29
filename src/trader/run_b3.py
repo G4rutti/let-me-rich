@@ -51,7 +51,21 @@ def prompt(kind: str) -> str:
     return "# Instruções do operador B3" + rules + CODEX_NOTE + "\n" + PROMPT[kind]
 
 
+def loop_revise() -> int:
+    """Revisão a cada session.revise_every_min até no_entry_after (o agendador ou o b3_hoje.bat chamam)."""
+    from trader.b3.config import hhmm, load_b3
+    from trader.trading_b3 import TZ
+    while True:
+        s = load_b3()["session"]
+        if datetime.now(TZ).time() >= hhmm(s["no_entry_after"]):
+            return 0
+        main(["--kind", "revise"])
+        time.sleep(s["revise_every_min"] * 60)
+
+
 def main(argv: list[str]) -> int:
+    if "--loop" in argv:
+        return loop_revise()
     kind = argv[argv.index("--kind") + 1] if "--kind" in argv else "plan"
     if kind not in KINDS:
         raise SystemExit(f"--kind deve ser um de {KINDS}")

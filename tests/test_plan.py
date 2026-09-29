@@ -180,3 +180,18 @@ def test_invalidacao_stop_e_alvo():
 def test_plano_da_regra_e_valido():
     assert ok({k: v for k, v in pl.rule_plan(D1).items() if k != "version"})
     assert ramp(0, 10, 3) == [0, 5, 10]
+
+
+def test_revisao_reabre_o_dia_ate_o_teto_do_macro():
+    fora = ok(plan(risk_level="fora", bias="neutral", setups=[]))
+    novo = plan(risk_level="normal", bias="short", setups=[setup("s1", "short")])
+    assert pl.validate_revision(fora, novo, cfg(), D1, risk_cap="normal")["risk_level"] == "normal"
+    assert pl.validate_revision(fora, plan(risk_level="reduzido", bias="short", setups=[setup("s1", "short")]),
+                                cfg(), D1, risk_cap="normal")
+    with pytest.raises(pl.PlanError, match="teto"):
+        pl.validate_revision(fora, novo, cfg(), D1, risk_cap="reduzido")
+    with pytest.raises(pl.PlanError, match="teto"):
+        pl.validate_revision(fora, novo, cfg(), D1, risk_cap=None)          # sem macro não reabre
+    normal = ok(plan(bias="long"))
+    with pytest.raises(pl.PlanError, match="só pode virar neutral"):
+        pl.validate_revision(normal, plan(bias="short"), cfg(), D1, risk_cap="normal")

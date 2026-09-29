@@ -40,7 +40,7 @@ session:                       # horário de Brasília; [VERIFICAR B3/Clear, mud
   no_entry_before: "09:15"
   no_entry_after: "16:30"
   flatten_at: "17:30"          # antes da zeragem compulsória da corretora
-  revise_every_min: 60
+  revise_every_min: 20         # o operador relê o mercado a cada 20 min (cada revisão = chamadas de modelo)
 
 filters:
   block_event_window_min: 30

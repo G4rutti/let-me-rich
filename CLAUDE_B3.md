@@ -65,12 +65,17 @@ um stop cheio (~R$30) encerra o dia; dois encerram o experimento.
 Evite: gap esticado sem pullback, rompimento sem volume, operar contra o regime diário e 60m ao mesmo tempo,
 setup que tomou stop hoje, alvo além de nível forte.
 
-### Revisão curta (`--kind revise`, durante o pregão)
+### Revisão (`--kind revise`, a cada `revise_every_min` durante o pregão)
 
-1. `b3_preflight`, `get_day_plan`, `get_instrument_snapshot`, `get_positions_b3`, `get_safety_status_b3`.
-2. Só pode **reduzir** risco: desativar setup (`active: false`), estreitar janela, apertar stop, reduzir `risk_level`,
-   `bias` → `neutral`, adicionar invalidação. Setup novo passa pelo revisor. Nada mudou → não revise (`revised: false`).
-3. `revise_day_plan(plan_completo, reason)`. Posição com tese quebrada → `close_position_b3(reason)`.
+Você acompanha o pregão: a cada revisão, releia o mercado e decida se o plano ainda faz sentido.
+1. `b3_preflight`, `get_day_plan`, `get_instrument_snapshot`, `get_positions_b3`, `get_safety_status_b3`
+   (e `get_morning_dossier` se precisar do contexto da manhã).
+2. Setups existentes só **apertam**: desativar (`active: false`), estreitar janela, apertar stop, adicionar invalidação.
+3. O dia pode ser **reaberto** quando o mercado mudou de verdade (rompeu o range, definiu tendência, fluxo claro):
+   subir `risk_level` até a sugestão do macro da manhã (acima disso é recusado), mudar `bias` se o dia estava `fora`,
+   e criar setup novo (passa pelo revisor independente). Reabrir exige motivo concreto no `reason`, não tédio.
+4. Nada mudou → não revise (`revised: false`). Posição com tese quebrada → `close_position_b3(reason)`.
+5. `revise_day_plan(plan_completo, reason)`.
 
 ### Pós-fechamento (`--kind close`)
 

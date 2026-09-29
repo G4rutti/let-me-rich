@@ -283,8 +283,9 @@ def write_day_plan(plan: dict) -> dict:
 @mcp.tool(annotations={"destructiveHint": True})
 @safe
 def revise_day_plan(plan: dict, reason: Reason) -> dict:
-    """Revisão: só reduz risco (desativar setup, estreitar janela, apertar stop, reduzir risk_level, bias -> neutral).
-    Setup novo passa pelo revisor independente. Mande o plano completo revisado."""
+    """Revisão durante o pregão. Setups existentes só apertam (desativar, estreitar janela, apertar stop).
+    Pode reabrir o dia (subir risk_level) até a sugestão do macro da manhã; setup novo passa pelo revisor
+    independente. Mande o plano completo revisado."""
     _kind("revise", "plan")
     c, now = ctx(), _now()
     if now.time() >= hhmm(c.cfg["session"]["no_entry_after"]):
@@ -292,8 +293,10 @@ def revise_day_plan(plan: dict, reason: Reason) -> dict:
     old = pl.active_plan(c.conn, c.today)
     if not old:
         raise tb.TradeError("NO_PLAN", "sem plano hoje: nada a revisar (dia sem operação)")
-    pl.validate_revision(old, _with_reviews(plan, old, placeholder=True), c.cfg, now.date())
-    p = pl.validate_revision(old, _with_reviews(plan, old), c.cfg, now.date())
+    macro = ((_dossier() or {}).get("analysts") or {}).get("macro")
+    cap = macro.get("risk_level") if isinstance(macro, dict) else None      # sem macro = sem reabrir
+    pl.validate_revision(old, _with_reviews(plan, old, placeholder=True), c.cfg, now.date(), cap)
+    p = pl.validate_revision(old, _with_reviews(plan, old), c.cfg, now.date(), cap)
     v = pl.save_plan(c.conn, p, "revise", CYCLE_ID)
     _plan_msg(f"✏️ B3 plano revisado (v{v}): {reason}", {**p, "version": v})
     return {"version": v, "plan": p}

@@ -161,13 +161,17 @@ def _setup_map(plan: dict) -> dict:
     return {s["id"]: s for s in plan["setups"]}
 
 
-def validate_revision(old: dict, raw: dict, cfg, today: date) -> dict:
-    """Revisão só reduz risco: desativa, estreita janela, aperta stop, reduz risk_level. Setup novo com bear_review."""
+def validate_revision(old: dict, raw: dict, cfg, today: date, risk_cap: str | None = None) -> dict:
+    """Revisão não afrouxa o que já existe: desativa, estreita janela, aperta stop. Setup novo com bear_review.
+    risk_level pode subir (reabrir o dia) só até `risk_cap` (a sugestão do analista macro da manhã)."""
     new = validate_plan(raw, cfg, today)
-    if RISK_ORDER[new["risk_level"]] > RISK_ORDER[old["risk_level"]]:
-        raise PlanError("REVISION_ADDS_RISK", f"risk_level {old['risk_level']} -> {new['risk_level']} aumenta risco")
-    if new["bias"] != old["bias"] and new["bias"] != "neutral":
-        raise PlanError("REVISION_ADDS_RISK", f"bias {old['bias']} -> {new['bias']}: só pode virar neutral")
+    cap = max(RISK_ORDER[old["risk_level"]], RISK_ORDER.get(risk_cap, -1))
+    if RISK_ORDER[new["risk_level"]] > cap:
+        raise PlanError("REVISION_ADDS_RISK", f"risk_level {old['risk_level']} -> {new['risk_level']} acima do teto "
+                                              f"do dia ({risk_cap or old['risk_level']}, sugestão do macro)")
+    if new["bias"] != old["bias"] and new["bias"] != "neutral" and old["risk_level"] != "fora":
+        raise PlanError("REVISION_ADDS_RISK", f"bias {old['bias']} -> {new['bias']}: só pode virar neutral "
+                                              f"(ou mudar livremente se o dia estava fora)")
     olds, news = _setup_map(old), _setup_map(new)
     for sid, n in news.items():
         o = olds.get(sid)

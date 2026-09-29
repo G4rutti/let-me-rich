@@ -1,9 +1,9 @@
 # Cria as tarefas do Agendador do Windows para o modo B3 (WIN). Rode SÓ depois do smoke com tudo OK.
-#   powershell -ExecutionPolicy Bypass -File scripts\install_tasks_b3.ps1 [-ReviseEveryMin 60]
+#   powershell -ExecutionPolicy Bypass -File scripts\install_tasks_b3.ps1 [-ReviseEveryMin 20]
 # Horários de Brasília; ajuste se mudar o pregão (horário de verão dos EUA) junto com config\b3.yaml.
 # A trava de perda total (watchdog) desliga TODAS estas tarefas; religar é à mão (schtasks /Change /TN ... /ENABLE).
 # O terminal MT5 tem que estar aberto e logado, com Algo Trading ligado, antes das 07:45.
-param([int]$ReviseEveryMin = 60)
+param([int]$ReviseEveryMin = 20)
 
 $root = Split-Path -Parent $PSScriptRoot
 $uv = (Get-Command uv -ErrorAction Stop).Source
