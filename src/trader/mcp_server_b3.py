@@ -309,6 +309,9 @@ def close_position_b3(reason: Reason) -> dict:
     if not trades:
         raise tb.TradeError("NO_POSITION", "sem posição aberta")
     c.say(f"⏹️ B3 operador zerando: {reason}")
+    if c.broker.is_paper:        # posições de papel vivem no processo do executor: ele zera no próximo passo
+        set_state(c.conn, "b3_close_request", {"reason": reason, "cycle_id": CYCLE_ID})
+        return {"requested": True, "note": "papel (dry): o executor zera no próximo passo"}
     return {"closed": [tb.close_trade(c, t, "manual") for t in trades]}
 
 

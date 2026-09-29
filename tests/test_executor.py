@@ -110,3 +110,22 @@ def test_zeragem_por_horario():
     conn, _ = run(p, [130200] * 10, until=8 * 60 + 35)
     t = trades(conn)[0]
     assert t["exit_reason"] == "flatten" and t["closed_at"]
+
+
+def test_zeragem_pedida_pelo_operador_em_papel():
+    from trader.db import get_state, set_state
+    prev, today = session([130200] * 40)
+    rp = Replay(prev + today, "WINV26")
+    rp.i = len(prev) - 1
+    conn = connect(":memory:")
+    c = cfg("dry")
+    pl.save_plan(conn, pl.validate_plan(plan(setups=[setup(target={"type": "r_multiple", "value": 5.0})]), c, D1), "plan")
+    ctxs = {v: make_ctx(c, conn, rp, "WINV26", notify=lambda m: None, variant=v, now=lambda: rp.now) for v in VARIANTS}
+    ex = Executor(ctxs)
+    while rp.advance() and rp.now.strftime("%H:%M") < "09:50":
+        ex.step(rp.now)
+    assert trades(conn)[0]["status"] == "open"
+    set_state(conn, "b3_close_request", {"reason": "tese quebrou"})
+    rp.advance()
+    ex.step(rp.now)
+    assert trades(conn)[0]["exit_reason"] == "manual" and get_state(conn, "b3_close_request") is None

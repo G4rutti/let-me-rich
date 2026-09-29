@@ -134,6 +134,14 @@ class Executor:
                     invalid.add(sid)
                     events.append(f"{variant}: {sid} invalidado ({inv['type']})")
         set_state(ctx.conn, self._invalid_key(variant, now), sorted(invalid))
+        # pedido de zeragem do operador (em papel a posição vive neste processo)
+        if variant == "real" and get_state(ctx.conn, "b3_close_request"):
+            req = get_state(ctx.conn, "b3_close_request")
+            set_state(ctx.conn, "b3_close_request", None)
+            for t in tb.open_trades(ctx):
+                if t["status"] == "open":
+                    tb.close_trade(ctx, t, "manual")
+                    events.append(f"real: zerado a pedido do operador ({req.get('reason')})")
         # gerenciamento
         tk = m["tick"]
         for t in tb.open_trades(ctx):
