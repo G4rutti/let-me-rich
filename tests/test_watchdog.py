@@ -141,3 +141,10 @@ def test_make_ctx_dry_usa_papel(env):
 def test_religar_exige_yes(argv):
     with pytest.raises(SystemExit):
         watchdog.main(argv)
+
+
+def test_tarefas_do_agendador_batem_com_o_kill():
+    import re
+    from pathlib import Path
+    ps1 = (Path(__file__).parents[1] / "scripts" / "install_tasks_b3.ps1").read_text(encoding="utf-8")
+    assert set(re.findall(r'New-B3Task "([^"]+)"', ps1)) == set(watchdog.B3_TASKS)
