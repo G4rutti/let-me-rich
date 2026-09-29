@@ -20,7 +20,33 @@ from trader.trading import Ctx, TradeError, portfolio
 
 WATCH_EVERY_S = 60
 HELP = ("/status  /posicoes  /pnl  /pause  /resume\n"
-        "/kill confirmar  -> cancela ordens, vende tudo a mercado, desliga o agendador")
+        "/b3  /plano  -> modo B3 (WIN)\n"
+        "/kill confirmar  -> cancela ordens, vende tudo a mercado, zera o WIN, desliga o agendador")
+_b3 = {"ctx": None}
+
+
+def b3ctx(ctx: Ctx):
+    """Conecta ao MT5 só quando algum comando B3 precisa (e reaproveita)."""
+    if _b3["ctx"] is None:
+        from trader.kill import b3_ctx_or_none
+        _b3["ctx"] = b3_ctx_or_none(ctx.notify)
+    return _b3["ctx"]
+
+
+def cmd_b3(ctx: Ctx) -> str:
+    from trader.trading_b3 import open_trades, pnl_today
+    b = b3ctx(ctx)
+    if b is None:
+        return "B3: mode=off"
+    c = b.conn
+    p = pnl_today(b)
+    lines = [f"B3 {b.symbol} modo={b.cfg['mode']} ({b.mode}) | pausado={get_state(c, 'b3_paused', False)} | "
+             f"trava total={get_state(c, 'b3_halted_total', False)} | trava do dia={get_state(c, 'b3_halted_day') == b.today}",
+             f"hoje: realizado R${p['realized_brl']:.2f} aberto R${p['open_brl']:.2f} trades {p['trades_today']}",
+             f"resta no dia R${p['daily_loss_left_brl']:.2f} | resta no total R${p['total_loss_left_brl']:.2f}"]
+    for t in open_trades(b):
+        lines.append(f"posição: {t['side']} {t['contracts']}x @ {t['entry_price']} SL {t['sl']} TP {t['tp']} ({t['setup']})")
+    return "\n".join(lines)
 
 
 def cmd_status(ctx: Ctx) -> str:
@@ -68,17 +94,30 @@ def handle(ctx: Ctx, text: str) -> str:
         return cmd_positions(ctx)
     if name == "/pnl":
         return cmd_pnl(ctx)
+    if name == "/b3":
+        return cmd_b3(ctx)
     if name == "/pause":
         set_state(ctx.conn, "paused", True)
+        set_state(ctx.conn, "b3_paused", True)
         return "⏸️ pausado: nenhuma entrada nova (stops e alvos continuam na exchange)"
     if name == "/resume":
         set_state(ctx.conn, "paused", False)
         set_state(ctx.conn, "consecutive_order_failures", 0)
-        return "▶️ retomado (contador de falhas zerado)"
+        set_state(ctx.conn, "b3_paused", False)
+        set_state(ctx.conn, "b3_consecutive_order_failures", 0)
+        extra = (" | B3 com trava de perda total: só `python -m trader.watchdog --religar --yes`"
+                 if get_state(ctx.conn, "b3_halted_total", False) else "")
+        return "▶️ retomado (contador de falhas zerado)" + extra
     if name == "/kill":
         if len(cmd) < 2 or cmd[1].lower() != "confirmar":
             return "confirme com: /kill confirmar"
-        return "\n".join(kill(ctx))
+        from trader.kill import kill_b3
+        try:
+            b3 = b3ctx(ctx)
+            b3_log = kill_b3(b3) if b3 else ["B3: mode=off"]
+        except Exception as e:  # noqa: BLE001 — o kill do cripto roda mesmo se o MT5 falhar
+            b3_log = [f"B3: ERRO no kill ({e}); zere o WIN pelo terminal MT5"]
+        return "\n".join(b3_log + kill(ctx))
     return HELP
 
 
