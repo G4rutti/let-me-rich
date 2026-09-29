@@ -12,7 +12,7 @@ instrument:
   point_value_brl: 0.20
   tick_points: 5
   roll_days_before_expiry: 2   # dias úteis antes do vencimento em que já opera o próximo contrato
-  history_symbol: "WIN$"       # [VERIFICAR] nome do contínuo na Clear
+  history_symbol: "WIN$N"      # conferido na Clear em 2026-09-29 (WIN$ e WIN@ vêm com tick 1 / R$0,20)
 
 risk:
   max_contracts_hard: 1        # teto duro; o código ignora qualquer valor acima de 1
